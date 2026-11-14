@@ -247,14 +247,14 @@ export const EstatesCouncilModal: React.FC<{
       disgraceTitle: 'Fronde & Sécession Féodale (< 20%)',
       disgraceDesc:
         'Vos provinces développées font sécession et lèvent des Armées de Chevaliers rebelles contre votre trône !',
-      appeaseLabel: '🍷 Banquet & Privilèges (45🪙 8⚡ → +14 Satisfaction)',
+      appeaseLabel: '🍷 Banquet & Privilèges (45💰 8⚡ → +14 Satisfaction)',
     },
     clerge: {
       icon: '⛪',
       disgraceTitle: 'Anathème & Schisme (< 20%)',
       disgraceDesc:
         'Érode la loyauté des 2 autres Ordres (-9), réduit l’Intendance et ouvre des Failles maudites générant des Zélotes !',
-      appeaseLabel: '🕯️ Offrandes Sacrées (35🪙 15🪵 8⚡ → +15 Satisfaction)',
+      appeaseLabel: '🕯️ Offrandes Sacrées (35💰 15🪵 8⚡ → +15 Satisfaction)',
     },
   };
 
@@ -303,7 +303,7 @@ export const EstatesCouncilModal: React.FC<{
           >
             {state.festivitiesTimer > 0
               ? `🎉 Festivités en cours (${Math.ceil(state.festivitiesTimer)}s)`
-              : '🎉 Organiser des Festivités (30🪙 30🌾 10⚡)'}
+              : '🎉 Organiser des Festivités (30💰 30🌾 10⚡)'}
           </button>
         </div>
       </div>
@@ -603,6 +603,57 @@ export const AuthorityCrisisModal: React.FC<{
           <strong>🏳️ Abdiquer et clore cette chronique</strong>
           <small className="btn-sub">Accepter la fin de votre règne et recommencer une partie.</small>
         </button>
+      </div>
+    </NativeModal>
+  );
+};
+
+// ==================== 6. ILLUSTRATED QUICK-START GUIDE MODAL ====================
+
+export const HowToPlayModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+}> = ({ open, onClose }) => {
+  return (
+    <NativeModal
+      open={open}
+      onClose={onClose}
+      closedBy="any"
+      title="📖 Guide Express du Régent — Comment jouer à Mandea"
+      wide
+    >
+      <div className="guide-grid">
+        <div className="guide-card">
+          <img src="/assets/sprites/farm.png" alt="Ferme" className="guide-sprite" />
+          <h3>1. Annexer & Bâtir</h3>
+          <p>
+            Votre <strong>⚡ Intendance</strong> se recharge seule chaque seconde. Cliquez sur une province voisine éclairée pour l’<strong>Annexer</strong>, puis bâtissez <strong>Fermes</strong> (Plaines), <strong>Élevages</strong> (Pâturages), <strong>Camps de bûcherons</strong> (Forêts), <strong>Mines</strong> (Collines) et <strong>Routes</strong> !
+          </p>
+        </div>
+
+        <div className="guide-card">
+          <img src="/assets/sprites/lumber.png" alt="Scierie" className="guide-sprite" />
+          <h3>2. Survivre aux 4 Saisons</h3>
+          <p>
+            L’Été et l’Automne offrent de riches moissons. En <strong>❄️ Hiver</strong>, les fermes gèlent (-80%) et vos habitants brûlent du <strong>🪵 Bois</strong> pour se chauffer : stockez toujours Vivres et Bois avant le gel (les Élevages produisent même l’hiver !).
+          </p>
+        </div>
+
+        <div className="guide-card">
+          <img src="/assets/sprites/chapel.png" alt="Chapelle" className="guide-sprite" />
+          <h3>3. Les 3 Ordres & l’Autorité</h3>
+          <p>
+            Gardez le soutien d’au moins <strong>2 Ordres sur 3</strong> (Peuple, Noblesse, Clergé au-dessus de 20%). Bâtissez Puits, Chapelles et Manoirs, ajustez les impôts ou lancez des <strong>🎉 Festivités</strong> pour regagner de l’Autorité !
+          </p>
+        </div>
+
+        <div className="guide-card">
+          <img src="/assets/sprites/army_player.png" alt="Armée" className="guide-sprite" />
+          <h3>4. Armées, Héros & Donjons</h3>
+          <p>
+            Recrutez vos troupes à la <strong>Capitale</strong>. Pour déplacer votre Armée : <strong>cliquez sur votre Chevalier</strong> sur la carte puis cliquez sur la province cible (ou clic droit). Envoyez vos <strong>Héros</strong> explorer les <strong>🗝️ Donjons</strong> !
+          </p>
+        </div>
       </div>
     </NativeModal>
   );

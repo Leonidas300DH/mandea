@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AdvisorBanner, computeAdvisorStep } from './components/AdvisorBanner';
 import {
   AuthorityCrisisModal,
   DungeonEventModal,
   EstatesCouncilModal,
+  HowToPlayModal,
   NewGameModal,
   TavernHeroesModal,
 } from './components/GameModals';
 import { TopHud } from './components/TopHud';
 import { WorldMap } from './components/WorldMap';
 import { ZonePanel } from './components/ZonePanel';
-import { SEASONS } from './data/buildings';
+import { BIOME_INFO, SEASONS } from './data/buildings';
 import {
   actionAppeaseEstate,
   actionAssignHeroToArmy,
@@ -35,11 +37,79 @@ import {
 } from './engine/simulation';
 import { GameState, Point, RaceId } from './types/game';
 
-const STORAGE_KEY = 'mandea_save_v1';
+const STORAGE_KEY = 'mandea_save_v2';
+
+function createDemoShowcaseState(mode: string): GameState {
+  let st = createInitialGameState('humans', 734219, 'Mandea-la-Claire');
+  if (mode !== 'rich') return st;
+
+  // Build a rich mid-game showcase with Farms, Barn, Lumber, Mine, Roads & Civic sprites visible!
+  st = {
+    ...st,
+    resources: {
+      ...st.resources,
+      intendance: 85,
+      food: 240,
+      wood: 220,
+      iron: 160,
+      gold: 310,
+      population: 68,
+      maxPopulation: 95,
+    },
+  };
+  const capNeighbors = st.zones[st.capitalZoneId]?.neighbors ?? [];
+  for (const nId of capNeighbors.slice(0, 4)) {
+    const nz = st.zones[nId];
+    if (!nz || nz.staticMonster) continue;
+    st = actionClaimZone(st, nId);
+    st = {
+      ...st,
+      resources: { ...st.resources, intendance: 85, wood: 260, iron: 180, gold: 340 },
+    };
+    const resType = BIOME_INFO[nz.biome].allowedResource;
+    if (resType) {
+      st = actionBuildOrUpgradeResource(st, nId, resType);
+      st = {
+        ...st,
+        resources: { ...st.resources, intendance: 85, wood: 260, iron: 180, gold: 340 },
+      };
+    }
+    st = actionUpgradeRoad(st, nId);
+  }
+  if (capNeighbors[0]) {
+    st = {
+      ...st,
+      resources: { ...st.resources, intendance: 85, wood: 260, iron: 180, gold: 340 },
+    };
+    st = actionBuildCivic(st, capNeighbors[0], 'wells');
+  }
+  if (capNeighbors[1]) {
+    st = {
+      ...st,
+      resources: { ...st.resources, intendance: 85, wood: 260, iron: 180, gold: 340 },
+    };
+    st = actionBuildCivic(st, capNeighbors[1], 'market');
+  }
+  st = {
+    ...st,
+    resources: { ...st.resources, intendance: 68, wood: 145, iron: 82, gold: 190 },
+  };
+  st = actionUpgradeCapital(st, 'cathedral');
+  return stepSimulation(st, 0.2);
+}
 
 export const App: React.FC = () => {
+  const demoParam = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('demo');
+  }, []);
+
   const [gameState, setGameState] = useState<GameState>(() => {
     try {
+      localStorage.removeItem('mandea_save_v1');
+      if (demoParam) {
+        return createDemoShowcaseState(demoParam);
+      }
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as GameState;
@@ -50,25 +120,34 @@ export const App: React.FC = () => {
     } catch {
       // Ignore corrupt save
     }
-    return createInitialGameState('humans', 428192);
+    return createInitialGameState('humans', 734219);
   });
 
   const [showNewGameModal, setShowNewGameModal] = useState<boolean>(() => {
+    if (demoParam) return false;
     return !localStorage.getItem(STORAGE_KEY);
   });
   const [hasChosenInitialKingdom, setHasChosenInitialKingdom] = useState<boolean>(() => {
+    if (demoParam) return true;
     return Boolean(localStorage.getItem(STORAGE_KEY));
   });
 
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(() => gameState.capitalZoneId);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(() =>
+    demoParam === 'rich' ? gameState.zones[gameState.capitalZoneId]?.neighbors[0] ?? null : null
+  );
   const [selectedArmyId, setSelectedArmyId] = useState<string | null>(null);
   const [orderMoveModeArmyId, setOrderMoveModeArmyId] = useState<string | null>(null);
+  const [defaultCapTab, setDefaultCapTab] = useState<'build' | 'recruit' | 'armies' | undefined>(
+    undefined
+  );
 
-  const [estatesModalOpen, setEstatesModalOpen] = useState(false);
+  const [estatesModalOpen, setEstatesModalOpen] = useState<boolean>(demoParam === 'council');
   const [tavernModalOpen, setTavernModalOpen] = useState(false);
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [activeDungeonModalZoneId, setActiveDungeonModalZoneId] = useState<string | null>(null);
 
-  const [zoom, setZoom] = useState<number>(1.05);
+  // Comfortable initial zoom framing the whole island & starter ring cleanly!
+  const [zoom, setZoom] = useState<number>(0.96);
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
 
   // Main real-time simulation loop
@@ -86,7 +165,7 @@ export const App: React.FC = () => {
 
   // Periodic localStorage autosave
   useEffect(() => {
-    if (!hasChosenInitialKingdom || gameState.gameOver) return;
+    if (!hasChosenInitialKingdom || gameState.gameOver || demoParam) return;
     const saveTimer = window.setTimeout(() => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
@@ -95,7 +174,7 @@ export const App: React.FC = () => {
       }
     }, 1200);
     return () => window.clearTimeout(saveTimer);
-  }, [gameState.totalTicks, hasChosenInitialKingdom, gameState.gameOver]);
+  }, [gameState.totalTicks, hasChosenInitialKingdom, gameState.gameOver, demoParam]);
 
   // Auto-surface Dungeon Event modal when a Hero triggers a choice
   useEffect(() => {
@@ -108,13 +187,15 @@ export const App: React.FC = () => {
     }
   }, [gameState.zones, gameState.zoneOrder, activeDungeonModalZoneId]);
 
+  const advisorStep = useMemo(() => computeAdvisorStep(gameState), [gameState]);
+
   const handleStartNewGame = (race: RaceId, seed: number, kingdomName: string) => {
     const fresh = createInitialGameState(race, seed, kingdomName);
     setGameState(fresh);
-    setSelectedZoneId(fresh.capitalZoneId);
+    setSelectedZoneId(null);
     setSelectedArmyId(Object.keys(fresh.armies)[0] ?? null);
     setOrderMoveModeArmyId(null);
-    setZoom(1.08);
+    setZoom(1.16);
     setPan({ x: 0, y: 0 });
     setHasChosenInitialKingdom(true);
     setShowNewGameModal(false);
@@ -132,6 +213,7 @@ export const App: React.FC = () => {
     if (playerArmies.length === 0) return;
     playerArmies.sort((a, b) => countUnits(b.units) - countUnits(a.units));
     setGameState((prev) => actionMoveArmy(prev, playerArmies[0].id, destZoneId));
+    setOrderMoveModeArmyId(null);
   };
 
   return (
@@ -141,14 +223,8 @@ export const App: React.FC = () => {
         onSetSpeed={(s) => setGameState((prev) => ({ ...prev, speed: s }))}
         onOpenEstates={() => setEstatesModalOpen(true)}
         onOpenTavern={() => setTavernModalOpen(true)}
+        onOpenHelp={() => setHelpModalOpen(true)}
         onOpenNewGame={() => setShowNewGameModal(true)}
-        onZoomIn={() => setZoom((z) => Math.min(2.35, +(z + 0.18).toFixed(2)))}
-        onZoomOut={() => setZoom((z) => Math.max(0.58, +(z - 0.18).toFixed(2)))}
-        onCenterCapital={() => {
-          setPan({ x: 0, y: 0 });
-          setZoom(1.1);
-          setSelectedZoneId(gameState.capitalZoneId);
-        }}
       />
 
       <main className="game-stage">
@@ -157,14 +233,22 @@ export const App: React.FC = () => {
           selectedZoneId={selectedZoneId}
           selectedArmyId={selectedArmyId}
           orderMoveModeArmyId={orderMoveModeArmyId}
+          advisorHighlightZoneId={advisorStep.targetZoneId}
           zoom={zoom}
           pan={pan}
           onChangeZoom={setZoom}
           onChangePan={setPan}
-          onSelectZone={(zId) => setSelectedZoneId(zId)}
+          onSelectZone={(zId) => {
+            setDefaultCapTab(undefined);
+            setSelectedZoneId(zId);
+          }}
           onSelectArmy={(aId, zId) => {
+            const clicked = gameState.armies[aId];
             setSelectedArmyId(aId);
             setSelectedZoneId(zId);
+            if (clicked?.owner === 'player') {
+              setOrderMoveModeArmyId((prev) => (prev === aId ? null : aId));
+            }
           }}
           onOrderArmyMove={(armyId, destZoneId) => {
             setGameState((prev) => actionMoveArmy(prev, armyId, destZoneId));
@@ -174,26 +258,79 @@ export const App: React.FC = () => {
           onOpenDungeonEvent={(zId) => setActiveDungeonModalZoneId(zId)}
         />
 
-        {/* Compact Bottom-Left Chronicle Log */}
-        <details className="chronicle-drawer" open>
-          <summary>
-            📜 Chronique de {gameState.kingdomName} ({SEASONS[gameState.season].emoji}{' '}
-            {SEASONS[gameState.season].subtitle})
-          </summary>
-          <ul className="chronicle-list">
-            {gameState.logs.slice(0, 6).map((lg) => (
-              <li key={lg.id} className={`log-${lg.type}`}>
-                <span className="log-meta">An {lg.year}</span> {lg.text}
-              </li>
-            ))}
-          </ul>
-        </details>
+        {/* Top-Left Step-by-Step Regent Advisor */}
+        <AdvisorBanner
+          step={advisorStep}
+          onFocusZone={(zId) => {
+            if (zId === gameState.capitalZoneId && advisorStep.stepNum === 5) {
+              setDefaultCapTab('recruit');
+            } else {
+              setDefaultCapTab(undefined);
+            }
+            setSelectedZoneId(zId);
+            if (gameState.zones[zId]?.dungeon?.pendingEvent) {
+              setActiveDungeonModalZoneId(zId);
+            }
+          }}
+          onOpenHelp={() => setHelpModalOpen(true)}
+        />
+
+        {/* Bottom-Left Controls: Compact Chronicle + Map Camera Pill */}
+        <div className="bottom-left-bar">
+          <details className="chronicle-drawer">
+            <summary>
+              📜 Journal ({SEASONS[gameState.season].emoji} {SEASONS[gameState.season].name})
+            </summary>
+            <ul className="chronicle-list">
+              {gameState.logs.slice(0, 6).map((lg) => (
+                <li key={lg.id} className={`log-${lg.type}`}>
+                  <span className="log-meta">An {lg.year}</span> {lg.text}
+                </li>
+              ))}
+            </ul>
+          </details>
+
+          <div className="camera-pill" role="group" aria-label="Caméra de la carte">
+            <button
+              type="button"
+              className="cam-btn"
+              title="Centrer et inspecter la Capitale"
+              aria-label="Centrer sur la Capitale"
+              onClick={() => {
+                setPan({ x: 0, y: 0 });
+                setZoom(0.96);
+                setSelectedZoneId(gameState.capitalZoneId);
+              }}
+            >
+              🏰 Capitale
+            </button>
+            <button
+              type="button"
+              className="cam-btn"
+              title="Zoom +"
+              aria-label="Zoom avant"
+              onClick={() => setZoom((z) => Math.min(2.25, +(z + 0.18).toFixed(2)))}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="cam-btn"
+              title="Zoom −"
+              aria-label="Zoom arrière"
+              onClick={() => setZoom((z) => Math.max(0.7, +(z - 0.18).toFixed(2)))}
+            >
+              −
+            </button>
+          </div>
+        </div>
 
         <ZonePanel
           state={gameState}
           zoneId={selectedZoneId}
           selectedArmyId={selectedArmyId}
           orderMoveModeArmyId={orderMoveModeArmyId}
+          defaultCapitalTab={defaultCapTab}
           onClose={() => setSelectedZoneId(null)}
           onExplore={(zId) => setGameState((prev) => actionExploreZone(prev, zId))}
           onClaim={(zId) => setGameState((prev) => actionClaimZone(prev, zId))}
@@ -241,6 +378,8 @@ export const App: React.FC = () => {
         onRecruitHero={(hId) => setGameState((prev) => actionRecruitHero(prev, hId))}
         onSelectZone={(zId) => setSelectedZoneId(zId)}
       />
+
+      <HowToPlayModal open={helpModalOpen} onClose={() => setHelpModalOpen(false)} />
 
       <DungeonEventModal
         open={Boolean(activeDungeonModalZoneId)}

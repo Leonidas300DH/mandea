@@ -151,23 +151,23 @@ export function generateOrganicWorld(seed: number): {
 } {
   const rng = createRng(seed);
 
-  // 1. Sample irregular organic points (strictly NO hex grid!)
-  const siteCount = 58;
+  // 1. Sample irregular organic points (strictly NO hex grid!) — spacious provinces like After Inc!
+  const siteCount = 30;
   let sites: Point[] = [];
   let attempts = 0;
-  const minDist = 112;
+  const minDist = 172;
 
   // Ensure a nice central point for the Capital
   sites.push({
-    x: MAP_WIDTH * 0.5 + (rng() - 0.5) * 70,
-    y: MAP_HEIGHT * 0.5 + (rng() - 0.5) * 60,
+    x: MAP_WIDTH * 0.5 + (rng() - 0.5) * 50,
+    y: MAP_HEIGHT * 0.5 + (rng() - 0.5) * 45,
   });
 
-  while (sites.length < siteCount && attempts < 4000) {
+  while (sites.length < siteCount && attempts < 5000) {
     attempts++;
     const candidate: Point = {
-      x: 55 + rng() * (MAP_WIDTH - 110),
-      y: 55 + rng() * (MAP_HEIGHT - 110),
+      x: 65 + rng() * (MAP_WIDTH - 130),
+      y: 65 + rng() * (MAP_HEIGHT - 130),
     };
     const ok = sites.every((s) => Math.hypot(s.x - candidate.x, s.y - candidate.y) >= minDist);
     if (ok) sites.push(candidate);
@@ -339,7 +339,7 @@ export function generateOrganicWorld(seed: number): {
   });
 
   const capLandNeighbors = neighborsMap[0].filter((n) => !isWaterIdx.has(n));
-  const guaranteedStarterBiomes: BiomeType[] = ['plains', 'forest', 'pasture', 'hills', 'plains', 'forest'];
+  const guaranteedStarterBiomes: BiomeType[] = ['plains', 'forest', 'pasture', 'hills', 'ruins', 'plains'];
   capLandNeighbors.forEach((nIdx, i) => {
     biomes[nIdx] = guaranteedStarterBiomes[i % guaranteedStarterBiomes.length];
   });
@@ -347,11 +347,11 @@ export function generateOrganicWorld(seed: number): {
   for (let idx = 1; idx < sites.length; idx++) {
     if (isWaterIdx.has(idx) || capLandNeighbors.includes(idx)) continue;
     const roll = rng();
-    if (roll < 0.24) biomes[idx] = 'plains';
-    else if (roll < 0.44) biomes[idx] = 'forest';
-    else if (roll < 0.62) biomes[idx] = 'pasture';
-    else if (roll < 0.79) biomes[idx] = 'hills';
-    else if (roll < 0.9) biomes[idx] = 'marsh';
+    if (roll < 0.25) biomes[idx] = 'plains';
+    else if (roll < 0.46) biomes[idx] = 'forest';
+    else if (roll < 0.64) biomes[idx] = 'pasture';
+    else if (roll < 0.81) biomes[idx] = 'hills';
+    else if (roll < 0.91) biomes[idx] = 'marsh';
     else biomes[idx] = 'ruins';
   }
 
@@ -470,18 +470,17 @@ export function generateOrganicWorld(seed: number): {
     let dungeon: DungeonSite | null = null;
     let staticMonster: StaticMonster | null = null;
 
-    if (!isWaterIdx.has(idx) && !isCapital && !isStarterNeighbor) {
-      // Place Dungeons on Ruins or occasional deep Forests/Hills
-      if (biome === 'ruins' || (dungeonCount < 6 && dist > 250 && rng() < 0.2)) {
-        const dTemplate = DUNGEON_NAMES[dungeonCount % DUNGEON_NAMES.length];
-        const stars: 1 | 2 | 3 = dist > 430 ? 3 : dist > 300 ? 2 : 1;
+    if (!isWaterIdx.has(idx) && !isCapital) {
+      if (isStarterNeighbor && biome === 'ruins' && dungeonCount === 0) {
+        // Guaranteed visible 1-star starter Dungeon right on the horizon so Hero expeditions are obvious!
+        const dTemplate = DUNGEON_NAMES[0];
         dungeon = {
           id: `dng_${idx}`,
           name: dTemplate.name,
           theme: dTemplate.theme,
-          stars,
+          stars: 1,
           cleared: false,
-          corrupted: stars >= 2 && rng() < 0.45,
+          corrupted: false,
           activeHeroId: null,
           progress: 0,
           stage: 1,
@@ -489,42 +488,62 @@ export function generateOrganicWorld(seed: number): {
           pendingEvent: null,
         };
         dungeonCount++;
-      } else if (dist > 220 && rng() < 0.34) {
-        // Place Static Territorial Monster guarding rich outer lands!
-        const rollM = rng();
-        if (rollM < 0.34 || biome === 'hills') {
-          staticMonster = {
-            id: `mon_${idx}`,
-            name: 'Troll Cuirassé des Crêtes',
-            kind: 'troll',
-            units: { monster_troll: dist > 390 ? 2 : 1, raider_goblin: 3 },
-            rewardGold: 55,
-            rewardIron: 28,
-            description: 'Un colosse territorial qui interdit toute construction tant qu’il vit.',
+      } else if (!isStarterNeighbor) {
+        // Place Dungeons on Ruins or occasional deep Forests/Hills
+        if (biome === 'ruins' || (dungeonCount < 4 && dist > 230 && rng() < 0.24)) {
+          const dTemplate = DUNGEON_NAMES[dungeonCount % DUNGEON_NAMES.length];
+          const stars: 1 | 2 | 3 = dist > 410 ? 3 : dist > 290 ? 2 : 1;
+          dungeon = {
+            id: `dng_${idx}`,
+            name: dTemplate.name,
+            theme: dTemplate.theme,
+            stars,
+            cleared: false,
+            corrupted: stars >= 2 && rng() < 0.45,
+            activeHeroId: null,
+            progress: 0,
+            stage: 1,
+            maxStages: 3,
+            pendingEvent: null,
           };
-        } else if (rollM < 0.68 || biome === 'forest' || biome === 'marsh') {
-          staticMonster = {
-            id: `mon_${idx}`,
-            name: 'Reine Arachnide Sylvestre',
-            kind: 'spider_queen',
-            units: { monster_spider: dist > 390 ? 2 : 1 },
-            rewardGold: 50,
-            rewardIron: 16,
-            description: 'Ses toiles géantes étouffent la forêt. Des tireurs perce-armure seront précieux.',
-          };
-        } else {
-          staticMonster = {
-            id: `mon_${idx}`,
-            name: 'Wyverne Émeraude',
-            kind: 'wyvern',
-            units: { monster_wyvern: 1 },
-            rewardGold: 80,
-            rewardIron: 24,
-            description: 'Redoutable drake perché sur un trésor d’or ancien.',
-          };
+          dungeonCount++;
+        } else if (dist > 205 && rng() < 0.42) {
+          // Place Static Territorial Monster guarding rich outer lands!
+          const rollM = rng();
+          if (rollM < 0.34 || biome === 'hills') {
+            staticMonster = {
+              id: `mon_${idx}`,
+              name: 'Troll Cuirassé des Crêtes',
+              kind: 'troll',
+              units: { monster_troll: dist > 380 ? 2 : 1, raider_goblin: 3 },
+              rewardGold: 55,
+              rewardIron: 28,
+              description: 'Un colosse territorial qui interdit toute construction tant qu’il vit.',
+            };
+          } else if (rollM < 0.68 || biome === 'forest' || biome === 'marsh') {
+            staticMonster = {
+              id: `mon_${idx}`,
+              name: 'Reine Arachnide Sylvestre',
+              kind: 'spider_queen',
+              units: { monster_spider: dist > 380 ? 2 : 1 },
+              rewardGold: 50,
+              rewardIron: 16,
+              description: 'Ses toiles géantes étouffent la forêt. Des tireurs perce-armure seront précieux.',
+            };
+          } else {
+            staticMonster = {
+              id: `mon_${idx}`,
+              name: 'Wyverne Émeraude',
+              kind: 'wyvern',
+              units: { monster_wyvern: 1 },
+              rewardGold: 80,
+              rewardIron: 24,
+              description: 'Redoutable drake perché sur un trésor d’or ancien.',
+            };
+          }
+          monsterCount++;
+          void monsterCount;
         }
-        monsterCount++;
-        void monsterCount;
       }
     }
 
