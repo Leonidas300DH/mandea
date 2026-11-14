@@ -7,7 +7,11 @@ import {
   PIXEL_W,
   renderPixelTerrainToImageData,
 } from '../engine/pixelTerrain';
-import { countUnits } from '../engine/simulation';
+import {
+  countUnits,
+  getExploreCost,
+  getRepairCost,
+} from '../engine/simulation';
 import {
   Army,
   CivicBuildingId,
@@ -28,8 +32,11 @@ interface WorldMapProps {
   onChangeZoom: (z: number) => void;
   onChangePan: (p: Point) => void;
   onSelectZone: (zoneId: string) => void;
+  onExploreZone: (zoneId: string) => void;
+  onRepairZone: (zoneId: string) => void;
   onSelectArmy: (armyId: string, zoneId: string) => void;
   onOrderArmyMove: (armyId: string, destZoneId: string) => void;
+  onCancelMoveMode: () => void;
   onOpenDungeonEvent: (zoneId: string) => void;
 }
 
@@ -45,8 +52,6 @@ const CIVIC_SPRITES: Record<CivicBuildingId, string> = {
   wells: '/assets/sprites/wells.png',
   market: '/assets/sprites/market.png',
   chapel: '/assets/sprites/chapel.png',
-  manor: '/assets/sprites/fort.png',
-  watchtower: '/assets/sprites/fort.png',
   fort: '/assets/sprites/fort.png',
 };
 
@@ -55,8 +60,6 @@ const CIVIC_OFFSETS: Point[] = [
   { x: 56, y: 18 },
   { x: -52, y: -28 },
   { x: 52, y: -28 },
-  { x: 0, y: 44 },
-  { x: 0, y: -48 },
 ];
 
 export const WorldMap: React.FC<WorldMapProps> = ({
@@ -70,8 +73,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   onChangeZoom,
   onChangePan,
   onSelectZone,
+  onExploreZone,
+  onRepairZone,
   onSelectArmy,
   onOrderArmyMove,
+  onCancelMoveMode,
   onOpenDungeonEvent,
 }) => {
   const boardRef = useRef<HTMLDivElement | null>(null);
@@ -136,7 +142,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   }, [terrainKey, staticCache]);
 
   const getZoneCenter = (zoneId: string): Point => {
-    return staticCache.visualCentersWorld[zoneId] ?? state.zones[zoneId]?.center ?? { x: 800, y: 525 };
+    return (
+      staticCache.visualCentersWorld[zoneId] ??
+      state.zones[zoneId]?.center ?? { x: 800, y: 525 }
+    );
   };
 
   // Map pointer event on viewport -> exact organic pixel cell in `staticCache`
@@ -199,7 +208,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   const handleBoardClick = (e: React.MouseEvent) => {
     if (dragStartRef.current.moved) return;
     const z = pickZoneFromPointer(e.clientX, e.clientY);
-    if (!z || z.biome === 'water') return;
+    if (!z || z.biome === 'water') {
+      if (orderMoveModeArmyId) onCancelMoveMode();
+      return;
+    }
 
     if (orderMoveModeArmyId && z.status !== 'unexplored') {
       onOrderArmyMove(orderMoveModeArmyId, z.id);
@@ -255,6 +267,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
 
   const armiesList = Object.values(state.armies).filter((a) => countUnits(a.units) > 0);
   const moveArmy = orderMoveModeArmyId ? state.armies[orderMoveModeArmyId] : null;
+  const exploreCost = getExploreCost(state);
+  const repairCost = getRepairCost();
 
   return (
     <div
@@ -281,7 +295,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
         }}
       >
-        {/* 1. True Pixel-Art Organic Terrain Canvas */}
+        {/* 1. True Pixel-Art Organic Terrain Canvas (Strictly NO Hexagons!) */}
         <canvas
           ref={canvasRef}
           width={PIXEL_W}
@@ -289,7 +303,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           className="pixel-terrain-canvas"
         />
 
-        {/* 2. Vector Path Overlay ONLY for Marching Arrows & Sonar Warning */}
+        {/* 2. Vector Path Overlay for Marching Arrows & Threat Sonars */}
         <svg
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           className="map-vector-overlay"
@@ -316,18 +330,39 @@ export const WorldMap: React.FC<WorldMapProps> = ({
             );
           })}
 
+          {/* Raider Advance Warning */}
+          {state.raiderWarningZoneId && state.zones[state.raiderWarningZoneId] && (() => {
+            const wc = getZoneCenter(state.raiderWarningZoneId);
+            return (
+              <g transform={`translate(${wc.x}, ${wc.y})`}>
+                <circle
+                  r="42"
+                  fill="rgba(249, 115, 22, 0.2)"
+                  stroke="#f97316"
+                  strokeWidth="3"
+                  className="sonar-pulse"
+                />
+                <circle r="18" fill="rgba(194, 65, 12, 0.9)" stroke="#fef08a" strokeWidth="2" />
+                <text x="0" y="6" textAnchor="middle" fontSize="15">
+                  ⚠️
+                </text>
+              </g>
+            );
+          })()}
+
+          {/* Invasion Advance Warning */}
           {state.invasionWarningZoneId && state.zones[state.invasionWarningZoneId] && (() => {
             const wc = getZoneCenter(state.invasionWarningZoneId);
             return (
               <g transform={`translate(${wc.x}, ${wc.y})`}>
                 <circle
                   r="48"
-                  fill="rgba(239, 68, 68, 0.2)"
+                  fill="rgba(239, 68, 68, 0.22)"
                   stroke="#ef4444"
                   strokeWidth="3"
                   className="sonar-pulse"
                 />
-                <circle r="20" fill="rgba(185, 28, 28, 0.85)" stroke="#fef08a" strokeWidth="2" />
+                <circle r="20" fill="rgba(185, 28, 28, 0.9)" stroke="#fef08a" strokeWidth="2" />
                 <text x="0" y="6" textAnchor="middle" fontSize="16">
                   📯
                 </text>
@@ -336,7 +371,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           })()}
         </svg>
 
-        {/* 3. Crisp Pixel-Art Landmarks, Visible Improvements & Clean Province Badges */}
+        {/* 3. Pixel-Art Landmarks, 1-Click Actions & Clear Resource Labels */}
         {state.zoneOrder.map((zId) => {
           const z = state.zones[zId];
           if (!z || z.biome === 'water') return null;
@@ -347,33 +382,49 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           const isAdvisorTarget = advisorHighlightZoneId === z.id;
           const biomeCfg = BIOME_INFO[z.biome];
 
-          // A. UNEXPLORED FRONTIER
+          // A. UNEXPLORED FRONTIER -> 1-Click Explore Button right on the fog!
           if (z.status === 'unexplored') {
             const canExplore = z.neighbors.some(
               (nId) => state.zones[nId]?.status !== 'unexplored'
             );
             if (!canExplore) return null;
+            const enoughStamina = state.resources.intendance >= exploreCost;
 
             return (
-              <div
+              <button
                 key={z.id}
-                className={`map-anchor frontier-pin ${isHovered || isSelected || isAdvisorTarget ? 'expanded' : ''}`}
+                type="button"
+                className={`map-anchor frontier-explore-btn ${
+                  isHovered || isSelected || isAdvisorTarget ? 'expanded' : ''
+                } ${!enoughStamina ? 'wait-stamina' : ''}`}
                 style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
+                title={
+                  enoughStamina
+                    ? `Explorer ce territoire (coûte ⚡ ${exploreCost} Commandement)`
+                    : `Attendez ⚡ ${exploreCost} Commandement pour explorer`
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (enoughStamina) {
+                    onExploreZone(z.id);
+                  } else {
+                    onSelectZone(z.id);
+                  }
+                }}
               >
-                <span className="compass-orb">🧭</span>
-                {(isHovered || isSelected || isAdvisorTarget) && (
-                  <span className="frontier-label">Explorer</span>
-                )}
-              </div>
+                <span className="compass-orb">🔍</span>
+                <span className="frontier-label">
+                  Explorer <strong className="frontier-cost">⚡{exploreCost}</strong>
+                </span>
+              </button>
             );
           }
 
-          // B. CAPITAL METROPOLIS
+          // B. CAPITAL CITY
           if (z.biome === 'capital') {
-            const capLvl =
-              (z.capitalBuildings.palace ?? 1) +
-              (z.capitalBuildings.walls ?? 1);
-            const castleSize = Math.min(144, 108 + capLvl * 6);
+            const cityTier = z.capitalBuildings.palace ?? 1;
+            const wallsTier = z.capitalBuildings.walls ?? 1;
+            const castleSize = Math.min(146, 106 + (cityTier + wallsTier) * 6);
 
             return (
               <div
@@ -381,7 +432,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 className={`map-anchor zone-landmark ${isSelected ? 'is-selected' : ''}`}
                 style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
               >
-                {/* Visible Secondary Capital Districts as player upgrades them! */}
+                {orderMoveModeArmyId && <div className="move-target-ring" />}
+
                 {(z.capitalBuildings.grand_market ?? 0) >= 1 && (
                   <img
                     src="/assets/sprites/market.png"
@@ -415,7 +467,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 />
 
                 <div className="map-plate capital-plate">
-                  <span>👑 {z.name}</span>
+                  <span>
+                    🏰 {z.name} · Niv.{cityTier}
+                  </span>
                 </div>
               </div>
             );
@@ -424,6 +478,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           // C. EXPLORED OR CLAIMED PROVINCE
           const resB = z.resourceBuilding;
           const resSize = resB ? 74 + resB.level * 10 : 0;
+          const isPillaged = z.pillagedTimer > 0;
 
           return (
             <div
@@ -433,12 +488,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               }`}
               style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
             >
-              {/* Move Destination Indicator */}
-              {orderMoveModeArmyId && (
-                <div className="move-target-ring" />
-              )}
+              {orderMoveModeArmyId && <div className="move-target-ring" />}
 
-              {/* Civic & Defense Improvements around the province */}
+              {/* Visible Local Civic Upgrades */}
               {z.status === 'claimed' &&
                 z.civicBuildings.map((civId, idx) => {
                   const off = CIVIC_OFFSETS[idx % CIVIC_OFFSETS.length];
@@ -462,7 +514,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                   <img
                     src={RESOURCE_SPRITES[resB.type]}
                     alt=""
-                    className="pixel-sprite main-landmark"
+                    className={`pixel-sprite main-landmark ${isPillaged ? 'damaged-sprite' : ''}`}
                     style={{ width: `${resSize}px` }}
                   />
                   <span className="level-stars">{'★'.repeat(resB.level)}</span>
@@ -470,10 +522,9 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               )}
 
               {/* Unimproved Claimed Province Prompt */}
-              {z.status === 'claimed' && !resB && !z.dungeon && (
+              {z.status === 'claimed' && !resB && !z.dungeon && !isPillaged && (
                 <div className="empty-claimed-badge">
-                  <span>{biomeCfg.emoji}</span>
-                  <small>+ Bâtir</small>
+                  <span>🏗️ Bâtir ({biomeCfg.emoji})</span>
                 </div>
               )}
 
@@ -485,7 +536,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                     alt={z.staticMonster.name}
                     className="pixel-sprite monster-sprite"
                   />
-                  <span className="threat-pill">⚔️ {z.staticMonster.name.split(' ')[0]}</span>
+                  <span className="threat-pill">🐉 {z.staticMonster.name.split(' ')[0]}</span>
                 </div>
               )}
 
@@ -522,14 +573,27 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 </div>
               )}
 
-              {/* Pillaged / Burning Alert */}
-              {z.pillagedTimer > 0 && (
-                <div className="pillaged-tag">🔥 Pillé !</div>
+              {/* 1-CLICK REPAIR BUTTON directly on Pillaged Provinces! */}
+              {isPillaged && (
+                <button
+                  type="button"
+                  className="pillaged-repair-btn"
+                  title="Cliquez pour réparer immédiatement cette province (⚡ 6 Commandement)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (state.resources.intendance >= repairCost) {
+                      onRepairZone(z.id);
+                    } else {
+                      onSelectZone(z.id);
+                    }
+                  }}
+                >
+                  🔥 Pillé — <strong>🔨 Réparer (⚡{repairCost})</strong>
+                </button>
               )}
 
-              {/* Clean, Uncluttered Province Label:
-                  - Always show compact biome pill on wild/claimed zones if hovered/selected, or subtle badge */}
-              {(isSelected || isHovered || z.status === 'seceded') ? (
+              {/* Province Name / Clear Yield Hint */}
+              {isSelected || isHovered || z.status === 'seceded' ? (
                 <div
                   className={`map-plate ${
                     z.status === 'claimed'
@@ -541,6 +605,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 >
                   <span>
                     {biomeCfg.emoji} {z.name}
+                    {z.status === 'explored' ? ` · ${biomeCfg.mapHint}` : ''}
                   </span>
                 </div>
               ) : (
@@ -548,8 +613,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 !z.staticMonster &&
                 !z.dungeon &&
                 z.status === 'explored' && (
-                  <div className="biome-whisper-chip" title={`${biomeCfg.name} — Cliquez pour inspecter`}>
-                    {biomeCfg.emoji} {biomeCfg.name.split(' ')[0]}
+                  <div
+                    className="biome-whisper-chip"
+                    title={`${biomeCfg.name} — Cliquez pour prendre ce territoire`}
+                  >
+                    {biomeCfg.mapHint}
                   </div>
                 )
               )}
@@ -574,7 +642,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 isSelected ? 'selected' : ''
               }`}
               style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
-              title={`${army.name} (${total} unités) — Cliquez pour sélectionner ou déplacer`}
+              title={
+                isPlayer
+                  ? `${army.name} (${total} soldats) — Cliquez pour sélectionner puis cliquez sur une zone pour la déplacer`
+                  : `${army.name} (${total} ennemis)`
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 if (orderMoveModeArmyId && !isPlayer) {
@@ -585,7 +657,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               }}
             >
               <img
-                src={isPlayer ? '/assets/sprites/army_player.png' : '/assets/sprites/army_enemy.png'}
+                src={
+                  isPlayer
+                    ? '/assets/sprites/army_player.png'
+                    : '/assets/sprites/army_enemy.png'
+                }
                 alt={army.name}
                 className="pixel-sprite army-sprite"
               />
@@ -612,13 +688,22 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         })}
       </div>
 
-      {/* Move-mode instruction bar */}
+      {/* Move-mode instruction bar with Cancel button */}
       {moveArmy && (
         <div className="move-order-banner">
           <span>
-            🚩 <strong>Mode Déplacement :</strong> cliquez sur n’importe quelle province éclairée pour y envoyer{' '}
-            <strong>{moveArmy.name}</strong>
+            🚩 <strong>{moveArmy.name} prête :</strong> cliquez sur une zone de la carte pour l’y envoyer
           </span>
+          <button
+            type="button"
+            className="move-cancel-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancelMoveMode();
+            }}
+          >
+            ✕ Annuler
+          </button>
         </div>
       )}
     </div>

@@ -4,6 +4,8 @@ export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
 export type GameSpeed = 0 | 0.5 | 1 | 2 | 4;
 
+export type DifficultyPace = 'peaceful' | 'normal' | 'intense';
+
 export type BiomeType =
   | 'capital'
   | 'plains'
@@ -25,22 +27,19 @@ export type RoadLevel = 0 | 1 | 2;
 export type ResourceBuildingType = 'farm' | 'livestock' | 'lumber' | 'mine' | 'grove';
 
 export type CivicBuildingId =
-  | 'wells'       // Puits & Hameau salubre (Peuple + Croissance)
-  | 'market'      // Marché & Relais (Or + Peuple)
-  | 'chapel'      // Chapelle / Sanctuaire rural (Clergé + Soin)
-  | 'manor'       // Manoir féodal (Noblesse + Garnison)
-  | 'watchtower'  // Tour de guet (Vision + Tir défensif)
-  | 'fort';       // Fortin / Palissade (Muraille locale anti-pillage)
+  | 'wells'   // Puits & Hameau (Conditions de vie : +Hab, +Peuple)
+  | 'market'  // Relais Marchand (+Or/s, +Peuple)
+  | 'chapel'  // Chapelle / Sanctuaire (+Clergé, Soin local)
+  | 'fort';   // Fortin & Guet (Bloque pillards, tir défensif, vision, +Noblesse)
 
 export type CapitalBuildingId =
-  | 'palace'       // Palais / Donjon Central (Intendance + Capacité)
-  | 'grand_market' // Grand Quartier Marchand (Or + Peuple)
-  | 'cathedral'    // Église -> Cathédrale / Grand Sanctuaire (Clergé + Bénédictions)
-  | 'noble_court'  // Cour des Nobles (Noblesse + Commandement)
-  | 'barracks'     // Caserne & Forge (Recrutement militaire)
-  | 'menagerie'    // Sanctuaire Fantastique / Tour Arcanique (Unités fantastiques)
-  | 'tavern'       // Taverne des Héros (Recrutement de Héros)
-  | 'walls';       // Fortifications (Palissade -> Murailles -> Citadelle)
+  | 'palace'       // Niveau de la Cité (Niv. 1 -> 5 : +Commandement/s, +Habitants, +Impôts)
+  | 'grand_market' // Grand Marché (+Or/s, +Peuple)
+  | 'cathedral'    // Église & Cathédrale (+Clergé, +Autorité)
+  | 'noble_court'  // Cour & Écuries Nobles (+Noblesse, débloque Cavalerie/Chevaliers)
+  | 'barracks'     // Caserne & Forge (Débloque Arbalétriers, +15% ATQ armée)
+  | 'menagerie'    // Sanctuaire Fantastique (Débloque les 2 Unités Fantastiques)
+  | 'walls';       // Remparts de la Cité (+PV Capitale, +Peuple & Noblesse)
 
 export type UnitRole =
   | 'militia'
@@ -55,12 +54,18 @@ export interface Point {
   y: number;
 }
 
+/**
+ * Streamlined After Inc-inspired resources:
+ * - `intendance` (⚡ Commandement / Stamina): regenerates automatically, used for exploring, claiming, building & repairing!
+ * - `food` (🌾 Vivres): from Plaines (Ferme) & Pâturages (Élevage), feeds population & troops.
+ * - `wood` (🪵 Bois): from Forêts (Camp de bûcherons), builds structures & heats homes in Winter.
+ * - `gold` (💰 Or): from Impôts, Collines (Mine d'Or) & Donjons, recruits Soldiers & Heroes!
+ */
 export interface Resources {
   intendance: number;
   maxIntendance: number;
   food: number;
   wood: number;
-  iron: number;
   gold: number;
   population: number;
   maxPopulation: number;
@@ -70,7 +75,6 @@ export interface ResourceRates {
   intendance: number;
   food: number;
   wood: number;
-  iron: number;
   gold: number;
 }
 
@@ -84,18 +88,11 @@ export interface UnitDefinition {
   rangedAtk: number;
   armorPierce: number;
   defense: number;
-  speed: number; // Map movement speed base
-  cost: {
-    food: number;
-    wood: number;
-    iron: number;
-    gold: number;
-    intendance?: number;
-  };
+  speed: number;
+  goldCost: number;
   upkeepGold: number;
   upkeepFood: number;
   requiresBuilding?: CapitalBuildingId;
-  requiresPastureOrSpecial?: boolean;
   pixelColor: string;
   accentColor: string;
   portrait?: string;
@@ -123,11 +120,11 @@ export interface Hero {
   xp: number;
   hp: number;
   maxHp: number;
-  armyAtkAura: number; // e.g., 0.15 = +15% army attack
-  armyDefAura: number; // e.g., 0.15 = +15% army defense
+  armyAtkAura: number;
+  armyDefAura: number;
   dungeonPower: number;
   status: 'idle' | 'army' | 'dungeon' | 'recovering';
-  assignedId: string | null; // armyId or zoneId (dungeon)
+  assignedId: string | null;
   relics: Relic[];
   portrait: string;
   lore: string;
@@ -154,10 +151,10 @@ export interface DungeonSite {
   theme: 'crypt' | 'tower' | 'mine' | 'shrine' | 'rift';
   stars: 1 | 2 | 3;
   cleared: boolean;
-  corrupted: boolean; // Hurts Clergé satisfaction until cleared!
+  corrupted: boolean;
   activeHeroId: string | null;
-  progress: number; // 0..100 for current stage
-  stage: number;    // 1..maxStages
+  progress: number;
+  stage: number;
   maxStages: number;
   pendingEvent: DungeonChoiceEvent | null;
 }
@@ -168,7 +165,7 @@ export interface StaticMonster {
   kind: 'wyvern' | 'troll' | 'spider_queen' | 'stone_titan' | 'specter';
   units: Record<string, number>;
   rewardGold: number;
-  rewardIron: number;
+  rewardWood: number;
   description: string;
 }
 
@@ -187,7 +184,7 @@ export interface Zone {
   isCoastal: boolean;
   decorSeed: number;
   status: ZoneStatus;
-  exploreProgress: number; // 0 or 100
+  exploreProgress: number;
   roadLevel: RoadLevel;
   resourceBuilding: {
     type: ResourceBuildingType;
@@ -197,7 +194,7 @@ export interface Zone {
   capitalBuildings: Record<CapitalBuildingId, number>;
   fortHp: number;
   maxFortHp: number;
-  pillagedTimer: number; // > 0 when burned/raided
+  pillagedTimer: number; // > 0 when pillaged/damaged -> can be repaired in 1 click!
   dungeon: DungeonSite | null;
   staticMonster: StaticMonster | null;
 }
@@ -217,7 +214,7 @@ export interface Army {
   race: RaceId | 'enemy';
   zoneId: string;
   path: string[];
-  moveProgress: number; // 0..1 toward path[0]
+  moveProgress: number;
   units: Record<string, number>;
   heroId: string | null;
   aiIntent?: 'pillage' | 'siege_capital' | 'hold' | 'corrupt';
@@ -234,11 +231,11 @@ export interface BattleState {
 
 export interface EstateState {
   id: EstateId;
-  satisfaction: number;       // 0..100
-  targetSatisfaction: number; // Equilibrium target
+  satisfaction: number;
+  targetSatisfaction: number;
   taxLevel: TaxLevel;
-  inDisgrace: boolean;        // < 20
-  crisisTimer: number;        // Spawns rebel/secession/schism events periodically
+  inDisgrace: boolean;
+  crisisTimer: number;
   factors: { label: string; delta: number }[];
 }
 
@@ -256,19 +253,21 @@ export interface GameState {
   gameOverReason: string | null;
   seed: number;
   race: RaceId;
+  pace: DifficultyPace;
   kingdomName: string;
   year: number;
   season: Season;
-  seasonProgress: number; // 0..100
+  seasonProgress: number;
   totalTicks: number;
   speed: GameSpeed;
+  goalChapter: number; // 1..4+ progressive After Inc-style goal chapters
   capitalZoneId: string;
   resources: Resources;
   rates: ResourceRates;
-  authority: number; // 0..100
+  authority: number;
   authorityDelta: number;
-  festivitiesTimer: number; // > 0 means active celebration
-  concessionsCount: number; // Permanent +15% upkeep/consumption each
+  festivitiesTimer: number;
+  concessionsCount: number;
   pendingAuthorityCrisis: boolean;
   estates: Record<EstateId, EstateState>;
   zones: Record<string, Zone>;
@@ -279,6 +278,8 @@ export interface GameState {
   tavernPool: Hero[];
   battles: Record<string, BattleState>;
   logs: LogEntry[];
-  invasionTimer: number;     // Countdown to next major rival army wave
-  invasionWarningZoneId: string | null; // Red sonar pulse in fog!
+  raiderTimer: number;
+  raiderWarningZoneId: string | null;
+  invasionTimer: number;
+  invasionWarningZoneId: string | null;
 }

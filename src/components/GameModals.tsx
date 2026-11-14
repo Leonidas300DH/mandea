@@ -1,6 +1,18 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { RACES } from '../data/races';
-import { EstateId, GameState, RaceId, TaxLevel } from '../types/game';
+import { CAPITAL_BUILDINGS } from '../data/buildings';
+import { getRaceUnits, RACES, UNIT_DEFINITIONS } from '../data/races';
+import {
+  computeArmyPower,
+  countUnits,
+  getUnitGoldCost,
+} from '../engine/simulation';
+import {
+  DifficultyPace,
+  EstateId,
+  GameState,
+  RaceId,
+  TaxLevel,
+} from '../types/game';
 
 interface NativeModalProps {
   open: boolean;
@@ -13,8 +25,8 @@ interface NativeModalProps {
 
 /**
  * Native `<dialog>` modal following modern-web-guidance `dialog` & `light-dismiss-a-dialog`:
- * - Opened strictly via `showModal()` (no `role="dialog"` or `aria-modal` added)
- * - Uses `closedby` declaratively + fallback bounding-rect light-dismiss for browsers without `closedBy`
+ * - Opened strictly via `showModal()` (no redundant `role="dialog"` or `aria-modal`)
+ * - Uses `closedby` declaratively + bounding-rect fallback for browsers without `closedBy`
  * - Resets `dialog.returnValue = ''` on close
  */
 export const NativeModal: React.FC<NativeModalProps> = ({
@@ -57,7 +69,6 @@ export const NativeModal: React.FC<NativeModalProps> = ({
     dialog.addEventListener('close', handleClose);
     dialog.addEventListener('cancel', handleCancel);
 
-    // Fallback for browsers without `<dialog closedby>` support (e.g. Safari)
     let cleanupFallback: (() => void) | undefined;
     if (closedBy === 'any' && !('closedBy' in HTMLDialogElement.prototype)) {
       const handleBackdropClick = (event: MouseEvent) => {
@@ -94,7 +105,11 @@ export const NativeModal: React.FC<NativeModalProps> = ({
           <h2 id={titleId}>{title}</h2>
           {closedBy !== 'none' && (
             <form method="dialog">
-              <button type="submit" className="dialog-close-btn" aria-label="Fermer la fenêtre">
+              <button
+                type="submit"
+                className="dialog-close-btn"
+                aria-label="Fermer la fenêtre"
+              >
                 ✕
               </button>
             </form>
@@ -106,16 +121,42 @@ export const NativeModal: React.FC<NativeModalProps> = ({
   );
 };
 
-// ==================== 1. NEW GAME / RACE PICKER MODAL ====================
+// ==================== 1. NEW GAME / RACE & PACE PICKER MODAL ====================
+
+const PACE_OPTIONS: { id: DifficultyPace; label: string; desc: string }[] = [
+  {
+    id: 'peaceful',
+    label: '🌿 Paisible',
+    desc: 'Très peu d’attaques : idéal pour bâtir et explorer tranquillement.',
+  },
+  {
+    id: 'normal',
+    label: '⚖️ Équilibré (After Inc)',
+    desc: '1re année 100 % paisible, puis raids espacés et annoncés à l’avance.',
+  },
+  {
+    id: 'intense',
+    label: '🔥 Intense',
+    desc: 'Pression militaire plus soutenue pour les vétérans.',
+  },
+];
 
 export const NewGameModal: React.FC<{
   open: boolean;
   canDismiss: boolean;
   onClose: () => void;
-  onStartGame: (race: RaceId, seed: number, kingdomName: string) => void;
+  onStartGame: (
+    race: RaceId,
+    seed: number,
+    kingdomName: string,
+    pace: DifficultyPace
+  ) => void;
 }> = ({ open, canDismiss, onClose, onStartGame }) => {
   const [selectedRace, setSelectedRace] = useState<RaceId>('humans');
-  const [seed, setSeed] = useState<number>(() => Math.floor(Math.random() * 900000) + 100000);
+  const [pace, setPace] = useState<DifficultyPace>('normal');
+  const [seed, setSeed] = useState<number>(
+    () => Math.floor(Math.random() * 900000) + 100000
+  );
   const [kingdomName, setKingdomName] = useState<string>(RACES.humans.kingdomTitle);
 
   const handleSelectRace = (r: RaceId) => {
@@ -128,11 +169,11 @@ export const NewGameModal: React.FC<{
       open={open}
       onClose={canDismiss ? onClose : undefined}
       closedBy={canDismiss ? 'any' : 'none'}
-      title="⚔️ MANDEA — Fonder un Nouveau Royaume (Bac à Sable)"
+      title="⚔️ MANDEA — Fonder votre Cité Médiévale-Fantastique"
       wide
     >
       <p className="dialog-lead">
-        Choisissez votre Peuple, étendez vos frontières organiques au rythme des 4 saisons, aménagez vos provinces et maintenez le soutien d’au moins <strong>2 Ordres sur 3</strong> (Peuple, Noblesse, Clergé) !
+        Inspiré d’<strong>After Inc</strong> : dépensez votre <strong>⚡ Commandement</strong> pour explorer et prendre les territoires voisins, produisez <strong>🌾 Vivres, 🪵 Bois et 💰 Or</strong> au fil des 4 saisons, recrutez <strong>Armées & Héros</strong> et gardez le soutien d’au moins <strong>2 Ordres sur 3</strong> !
       </p>
 
       <div className="race-grid">
@@ -168,9 +209,27 @@ export const NewGameModal: React.FC<{
         })}
       </div>
 
+      {/* Pace / Threat Frequency Selector */}
+      <div className="pace-picker-box">
+        <span className="pace-picker-title">Rythme des menaces ennemies :</span>
+        <div className="pace-btns-row">
+          {PACE_OPTIONS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={`pace-btn ${pace === p.id ? 'active' : ''}`}
+              onClick={() => setPace(p.id)}
+            >
+              <strong>{p.label}</strong>
+              <small>{p.desc}</small>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="new-game-controls">
         <label className="field-group">
-          <span>Nom de votre Capitale / Royaume :</span>
+          <span>Nom de votre Cité :</span>
           <input
             type="text"
             value={kingdomName}
@@ -179,7 +238,7 @@ export const NewGameModal: React.FC<{
           />
         </label>
         <label className="field-group">
-          <span>Graine du Continent :</span>
+          <span>Graine de la Carte :</span>
           <div className="seed-row">
             <input
               type="number"
@@ -199,7 +258,7 @@ export const NewGameModal: React.FC<{
           type="button"
           className="primary-btn start-kingdom-btn"
           autoFocus
-          onClick={() => onStartGame(selectedRace, seed, kingdomName)}
+          onClick={() => onStartGame(selectedRace, seed, kingdomName, pace)}
         >
           🏰 Fonder {kingdomName || RACES[selectedRace].kingdomTitle}
         </button>
@@ -208,7 +267,334 @@ export const NewGameModal: React.FC<{
   );
 };
 
-// ==================== 2. THREE ESTATES, TAXES & FESTIVITIES MODAL ====================
+// ==================== 2. UNIFIED ARMY & HEROES RECRUITMENT MODAL ====================
+
+export const ArmyAndHeroesModal: React.FC<{
+  open: boolean;
+  state: GameState;
+  onClose: () => void;
+  onRecruitUnit: (unitId: string, targetArmyId?: string | 'new') => void;
+  onRecruitHero: (heroId: string) => void;
+  onAssignHero: (heroId: string, armyId: string | null) => void;
+  onSplitArmy: (armyId: string) => void;
+  onStartMoveArmyOnMap: (armyId: string) => void;
+  onSendHeroToDungeon: (heroId: string, zoneId: string) => void;
+  onOpenCityPanel: () => void;
+  onSelectZone: (zoneId: string) => void;
+}> = ({
+  open,
+  state,
+  onClose,
+  onRecruitUnit,
+  onRecruitHero,
+  onAssignHero,
+  onSplitArmy,
+  onStartMoveArmyOnMap,
+  onSendHeroToDungeon,
+  onOpenCityPanel,
+  onSelectZone,
+}) => {
+  const raceDef = RACES[state.race];
+  const raceUnits = getRaceUnits(state.race);
+  const capZone = state.zones[state.capitalZoneId];
+  const playerArmies = Object.values(state.armies).filter(
+    (a) => a.owner === 'player' && countUnits(a.units) > 0
+  );
+  const [targetArmyChoice, setTargetArmyChoice] = useState<string>('auto');
+
+  const recruitedHeroes = Object.values(state.heroes);
+  const openDungeonZone = state.zoneOrder
+    .map((id) => state.zones[id])
+    .find(
+      (z) =>
+        z &&
+        z.status !== 'unexplored' &&
+        z.dungeon &&
+        !z.dungeon.cleared &&
+        !z.dungeon.activeHeroId
+    );
+
+  const effectiveTarget: string | 'new' | undefined =
+    targetArmyChoice === 'new'
+      ? 'new'
+      : targetArmyChoice !== 'auto' && state.armies[targetArmyChoice]
+        ? targetArmyChoice
+        : undefined;
+
+  return (
+    <NativeModal
+      open={open}
+      onClose={onClose}
+      closedBy="any"
+      title={`⚔️ Armée & Héros (${raceDef.name}) — Recruter & Commander`}
+      wide
+    >
+      {/* Top Gold & Target Army Bar */}
+      <div className="army-modal-summary">
+        <div className="gold-highlight-pill">
+          <span>💰 Votre Or disponible :</span>
+          <strong>{Math.floor(state.resources.gold)} Or</strong>
+          <small>
+            ({state.rates.gold >= 0 ? `+${state.rates.gold.toFixed(1)}` : state.rates.gold.toFixed(1)}/s)
+          </small>
+        </div>
+
+        <label className="army-target-picker">
+          <span>Les recrues rejoignent :</span>
+          <select
+            value={targetArmyChoice}
+            onChange={(e) => setTargetArmyChoice(e.target.value)}
+          >
+            <option value="auto">
+              🛡️ Armée principale ({playerArmies[0]?.name ?? 'Nouvelle Armée'})
+            </option>
+            {playerArmies.map((a) => (
+              <option key={a.id} value={a.id}>
+                🚩 {a.name} ({state.zones[a.zoneId]?.name ?? 'Carte'})
+              </option>
+            ))}
+            <option value="new">✨ Créer une nouvelle Armée à la Cité</option>
+          </select>
+        </label>
+      </div>
+
+      {/* 1. RECRUIT STACKABLE UNITS (COSTS ONLY GOLD!) */}
+      <h3 className="section-sub">1. Recruter des Soldats & Unités Fantastiques (coûte uniquement de l’💰 Or)</h3>
+      <div className="recruit-units-grid">
+        {raceUnits.map((u) => {
+          const reqB = u.requiresBuilding;
+          const locked = reqB ? (capZone?.capitalBuildings[reqB] ?? 0) < 1 : false;
+          const costGold = getUnitGoldCost(state, u.id);
+          const canAfford = !locked && state.resources.gold >= costGold;
+
+          return (
+            <div key={u.id} className={`unit-recruit-card ${locked ? 'locked' : ''}`}>
+              <div className="unit-card-top">
+                <div className="unit-title-group">
+                  <span className="unit-big-emoji">{u.badgeEmoji}</span>
+                  <div>
+                    <strong>{u.name}</strong>
+                    <div className="unit-stats-line">
+                      ❤️ {u.hp} • ⚔️ {u.meleeAtk}
+                      {u.rangedAtk > 0 ? ` • 🏹 ${u.rangedAtk}` : ''} • 🛡️ {u.defense}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <p className="unit-desc-text">{u.description}</p>
+
+              {locked && reqB ? (
+                <button
+                  type="button"
+                  className="action-btn full-btn"
+                  onClick={() => {
+                    onClose();
+                    onOpenCityPanel();
+                  }}
+                >
+                  <span>🔒 Construire « {CAPITAL_BUILDINGS[reqB].name} » dans Ma Cité</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="primary-btn full-btn"
+                  disabled={!canAfford}
+                  onClick={() => onRecruitUnit(u.id, effectiveTarget)}
+                >
+                  <div className="btn-top-line">
+                    <span>+ Recruter 1× {u.name}</span>
+                    <span className={`cost-chip ${!canAfford ? 'missing' : 'ok'}`}>
+                      💰 {costGold} Or
+                    </span>
+                  </div>
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 2. YOUR ACTIVE ARMIES */}
+      <h3 className="section-sub">2. Vos Armées en campagne ({playerArmies.length})</h3>
+      {playerArmies.length === 0 ? (
+        <p className="small-muted">
+          Vous n’avez aucune armée active : recrutez un soldat ci-dessus pour former une nouvelle compagnie à votre Cité !
+        </p>
+      ) : (
+        <div className="heroes-grid">
+          {playerArmies.map((army) => {
+            const zName = state.zones[army.zoneId]?.name ?? 'En marche';
+            return (
+              <div key={army.id} className="army-stack-box">
+                <div className="army-stack-header">
+                  <div className="army-title-wrap">
+                    <img
+                      src="/assets/sprites/army_player.png"
+                      alt=""
+                      className="mini-sprite-icon"
+                    />
+                    <div>
+                      <strong>{army.name}</strong>
+                      <div className="small-muted" style={{ margin: 0 }}>
+                        📍 {zName}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="power-badge">⚔️ {computeArmyPower(army, state)}</span>
+                </div>
+
+                <div className="unit-tags">
+                  {Object.entries(army.units).map(([uId, cnt]) =>
+                    cnt > 0 ? (
+                      <span key={uId} className="unit-tag">
+                        {UNIT_DEFINITIONS[uId]?.badgeEmoji} <strong>{cnt}×</strong>{' '}
+                        {UNIT_DEFINITIONS[uId]?.name}
+                      </span>
+                    ) : null
+                  )}
+                </div>
+
+                <div className="hero-assign-row">
+                  <label htmlFor={`modal_hero_${army.id}`}>Commandant :</label>
+                  <select
+                    id={`modal_hero_${army.id}`}
+                    value={army.heroId ?? ''}
+                    onChange={(e) =>
+                      onAssignHero(
+                        e.target.value || army.heroId || '',
+                        e.target.value ? army.id : null
+                      )
+                    }
+                  >
+                    <option value="">— Aucun Héros —</option>
+                    {recruitedHeroes
+                      .filter((h) => h.status !== 'dungeon')
+                      .map((h) => (
+                        <option key={h.id} value={h.id}>
+                          👑 {h.name} (Niv.{h.level})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="army-actions-row">
+                  <button
+                    type="button"
+                    className="primary-btn compact-btn"
+                    onClick={() => {
+                      onClose();
+                      onStartMoveArmyOnMap(army.id);
+                    }}
+                  >
+                    🚩 Déplacer sur la carte
+                  </button>
+                  {countUnits(army.units) >= 2 && (
+                    <button
+                      type="button"
+                      className="action-btn compact-btn"
+                      onClick={() => onSplitArmy(army.id)}
+                    >
+                      ➗ Diviser en 2
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 3. HEROES & TAVERN */}
+      <h3 className="section-sub">
+        3. Vos Héros ({recruitedHeroes.length}) & Taverne (pour commander vos Armées ou explorer les 🗝️ Donjons)
+      </h3>
+      <div className="heroes-grid">
+        {recruitedHeroes.map((h) => (
+          <div key={h.id} className="hero-card">
+            <img src={h.portrait} alt={h.name} width={72} height={72} className="hero-avatar" />
+            <div className="hero-info">
+              <strong>
+                {h.name} <span className="lvl-pill">Niv. {h.level}</span>
+              </strong>
+              <span className="small-muted">{h.title}</span>
+              <div className="hero-stats">
+                ❤️ {Math.round(h.hp)}/{h.maxHp} • Aura +{Math.round(h.armyAtkAura * 100)}% ATQ
+              </div>
+              {h.relics.length > 0 && (
+                <div className="hero-relics">
+                  {h.relics.map((r, idx) => (
+                    <span key={`${r.id}_${idx}`} className="relic-chip" title={r.description}>
+                      {r.icon} {r.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="hero-status-line">
+                {h.status === 'dungeon' && h.assignedId ? (
+                  <button
+                    type="button"
+                    className="action-btn compact-btn"
+                    onClick={() => {
+                      onClose();
+                      onSelectZone(h.assignedId!);
+                    }}
+                  >
+                    🗝️ Explore {state.zones[h.assignedId]?.name} — Voir
+                  </button>
+                ) : openDungeonZone?.dungeon ? (
+                  <button
+                    type="button"
+                    className="primary-btn compact-btn"
+                    onClick={() => {
+                      onSendHeroToDungeon(h.id, openDungeonZone.id);
+                      onClose();
+                      onSelectZone(openDungeonZone.id);
+                    }}
+                  >
+                    🗝️ Explorer {openDungeonZone.dungeon.name}
+                  </button>
+                ) : h.status === 'army' && h.assignedId ? (
+                  <span className="ok-text">
+                    🚩 Commande {state.armies[h.assignedId]?.name}
+                  </span>
+                ) : (
+                  <span className="ok-text">✓ Prêt à la Cité</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {state.tavernPool.map((h) => {
+          const canBuyHero = state.resources.gold >= 60;
+          return (
+            <div key={h.id} className="hero-card tavern-offer-card">
+              <img src={h.portrait} alt={h.name} width={72} height={72} className="hero-avatar" />
+              <div className="hero-info">
+                <strong>🍺 {h.name}</strong>
+                <span className="small-muted">{h.title}</span>
+                <p className="small-muted" style={{ margin: '2px 0 6px' }}>
+                  {h.lore}
+                </p>
+                <button
+                  type="button"
+                  className="primary-btn compact-btn"
+                  disabled={!canBuyHero}
+                  onClick={() => onRecruitHero(h.id)}
+                >
+                  + Recruter ce Héros (💰 60 Or)
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </NativeModal>
+  );
+};
+
+// ==================== 3. THREE ESTATES, TAXES & FESTIVITIES MODAL ====================
 
 const TAX_OPTIONS: { id: TaxLevel; label: string; desc: string }[] = [
   { id: 'exempt', label: 'Exempté', desc: '0 Or • +18 Satisfaction' },
@@ -233,28 +619,37 @@ export const EstatesCouncilModal: React.FC<{
 
   const estateMeta: Record<
     EstateId,
-    { icon: string; disgraceTitle: string; disgraceDesc: string; appeaseLabel: string }
+    {
+      icon: string;
+      disgraceTitle: string;
+      disgraceDesc: string;
+      appeaseLabel: string;
+      canAfford: boolean;
+    }
   > = {
     peuple: {
       icon: '🌾',
-      disgraceTitle: 'Jacquerie des Serfs (< 20%)',
+      disgraceTitle: 'Révolte des Serfs (< 20%)',
       disgraceDesc:
-        'Grèves (-50% prod.) et apparition de Bandes de Rebelles qui incendient vos campagnes et attaquent la Capitale !',
-      appeaseLabel: '🍞 Distribuer du grain (35🌾 8⚡ → +14 Satisfaction)',
+        'Production réduite et apparition de Bandes de Rebelles qui attaquent vos terres et votre Capitale.',
+      appeaseLabel: '🍞 Distribuer des Vivres (30 🌾 Vivres → +15 Satisfaction)',
+      canAfford: state.resources.food >= 30,
     },
     noblesse: {
       icon: '⚜️',
-      disgraceTitle: 'Fronde & Sécession Féodale (< 20%)',
+      disgraceTitle: 'Sécession Féodale (< 20%)',
       disgraceDesc:
-        'Vos provinces développées font sécession et lèvent des Armées de Chevaliers rebelles contre votre trône !',
-      appeaseLabel: '🍷 Banquet & Privilèges (45💰 8⚡ → +14 Satisfaction)',
+        'Un territoire développé fait sécession et lève une armée rebelle contre vous.',
+      appeaseLabel: '🍷 Présents & Titres (40 💰 Or → +15 Satisfaction)',
+      canAfford: state.resources.gold >= 40,
     },
     clerge: {
       icon: '⛪',
-      disgraceTitle: 'Anathème & Schisme (< 20%)',
+      disgraceTitle: 'Schisme & Anathème (< 20%)',
       disgraceDesc:
-        'Érode la loyauté des 2 autres Ordres (-9), réduit l’Intendance et ouvre des Failles maudites générant des Zélotes !',
-      appeaseLabel: '🕯️ Offrandes Sacrées (35💰 15🪵 8⚡ → +15 Satisfaction)',
+        'Fait baisser le moral des autres Ordres et attire des Zélotes près des lieux anciens.',
+      appeaseLabel: '🕯️ Offrandes au Sanctuaire (35 💰 Or → +15 Satisfaction)',
+      canAfford: state.resources.gold >= 35,
     },
   };
 
@@ -263,13 +658,13 @@ export const EstatesCouncilModal: React.FC<{
       open={open}
       onClose={onClose}
       closedBy="any"
-      title="👑 Conseil des Trois Ordres, Fiscalité & Autorité Royale"
+      title="👑 Les 3 Ordres du Royaume, Impôts & Festivités"
       wide
     >
       <div className="council-banner">
         <img
           src={anyDisgrace ? '/assets/events/crisis-revolt.jpg' : '/assets/events/festivities.jpg'}
-          alt="Conseil du Royaume"
+          alt="Conseil des Trois Ordres"
           width={640}
           height={180}
           className="council-banner-img"
@@ -277,15 +672,17 @@ export const EstatesCouncilModal: React.FC<{
         <div className="authority-summary-box">
           <div>
             <h3>
-              Autorité Royale : <strong>{Math.round(state.authority)} / 100</strong>{' '}
-              <small>({state.authorityDelta >= 0 ? `+${state.authorityDelta}` : state.authorityDelta}/s)</small>
+              👑 Autorité Royale : <strong>{Math.round(state.authority)} / 100</strong>{' '}
+              <small>
+                ({state.authorityDelta >= 0 ? `+${state.authorityDelta}` : state.authorityDelta}/s)
+              </small>
             </h3>
             <p className="small-muted">
-              Règle des 2 sur 3 : si <strong>2 Ordres tombent en Disgrâce (&lt;20%)</strong>, votre Autorité chute. Si elle tombe à 0, vous devrez concéder des chartes permanentes pour acheter leur loyauté !
+              Gardez le soutien d’au moins <strong>2 Ordres sur 3 (au-dessus de 20 %)</strong> ! Si votre Autorité baisse, organisez des <strong>Festivités</strong>. Si elle tombe à 0, vous pourrez acheter la loyauté (mais vos sujets consommeront plus de façon définitive).
               {state.concessionsCount > 0 && (
                 <strong className="warn-inline">
                   {' '}
-                  • Chartes concédées : {state.concessionsCount} (+{state.concessionsCount * 15}% conso permanente)
+                  • Loyauté achetée : {state.concessionsCount}× (+{state.concessionsCount * 12}% conso permanente)
                 </strong>
               )}
             </p>
@@ -296,14 +693,13 @@ export const EstatesCouncilModal: React.FC<{
             disabled={
               state.festivitiesTimer > 0 ||
               state.resources.gold < 30 ||
-              state.resources.food < 30 ||
-              state.resources.intendance < 10
+              state.resources.food < 25
             }
             onClick={onStartFestivities}
           >
             {state.festivitiesTimer > 0
               ? `🎉 Festivités en cours (${Math.ceil(state.festivitiesTimer)}s)`
-              : '🎉 Organiser des Festivités (30💰 30🌾 10⚡)'}
+              : '🎉 Organiser des Festivités (30 💰 Or • 25 🌾 Vivres → +12 Autorité)'}
           </button>
         </div>
       </div>
@@ -319,22 +715,22 @@ export const EstatesCouncilModal: React.FC<{
                 <strong>
                   {meta.icon} {raceDef.estateLabels[id]}
                 </strong>
-                <span className={`sat-badge ${est.inDisgrace ? 'bad' : val >= 75 ? 'good' : ''}`}>
-                  {val}% → cible {Math.round(est.targetSatisfaction)}%
+                <span className={`sat-badge ${est.inDisgrace ? 'bad' : val >= 70 ? 'good' : ''}`}>
+                  {val}% (cible {Math.round(est.targetSatisfaction)}%)
                 </span>
               </div>
 
               <div className="sat-bar-track">
                 <div className="disgrace-threshold" title="Seuil de Disgrâce (20%)" />
                 <div
-                  className={`sat-bar-fill ${est.inDisgrace ? 'bad' : val >= 75 ? 'good' : 'mid'}`}
+                  className={`sat-bar-fill ${est.inDisgrace ? 'bad' : val >= 70 ? 'good' : 'mid'}`}
                   style={{ width: `${val}%` }}
                 />
               </div>
 
               {/* Tax Selector */}
               <div className="tax-selector">
-                <span className="tax-label">Impôt :</span>
+                <span className="tax-label">Niveau d’impôt (moins d’impôts = plus contents) :</span>
                 <div className="tax-btns">
                   {TAX_OPTIONS.map((t) => (
                     <button
@@ -350,12 +746,17 @@ export const EstatesCouncilModal: React.FC<{
                 </div>
               </div>
 
-              <button type="button" className="action-btn full-btn" onClick={() => onAppease(id)}>
+              <button
+                type="button"
+                className="action-btn full-btn"
+                disabled={!meta.canAfford}
+                onClick={() => onAppease(id)}
+              >
                 {meta.appeaseLabel}
               </button>
 
               <details className="factors-details">
-                <summary>Voir détails & risque de Disgrâce</summary>
+                <summary>Pourquoi ce niveau de satisfaction ?</summary>
                 <ul>
                   {est.factors.map((f, i) => (
                     <li key={i}>
@@ -374,106 +775,6 @@ export const EstatesCouncilModal: React.FC<{
           );
         })}
       </div>
-    </NativeModal>
-  );
-};
-
-// ==================== 3. TAVERN & HEROES MODAL ====================
-
-export const TavernHeroesModal: React.FC<{
-  open: boolean;
-  state: GameState;
-  onClose: () => void;
-  onRecruitHero: (heroId: string) => void;
-  onSelectZone: (zoneId: string) => void;
-}> = ({ open, state, onClose, onRecruitHero, onSelectZone }) => {
-  const recruited = Object.values(state.heroes);
-
-  return (
-    <NativeModal
-      open={open}
-      onClose={onClose}
-      closedBy="any"
-      title="🍺 Taverne & Hall des Héros Légendaires"
-      wide
-    >
-      <h3 className="section-sub">Vos Héros au service de la Couronne ({recruited.length})</h3>
-      <div className="heroes-grid">
-        {recruited.map((h) => (
-          <div key={h.id} className="hero-card">
-            <img src={h.portrait} alt={h.name} width={76} height={76} className="hero-avatar" />
-            <div className="hero-info">
-              <strong>
-                {h.name} <span className="lvl-pill">Niv. {h.level}</span>
-              </strong>
-              <span className="small-muted">{h.title}</span>
-              <div className="hero-stats">
-                ❤️ {Math.round(h.hp)}/{h.maxHp} • ⚔️ Aura +{Math.round(h.armyAtkAura * 100)}% ATQ / +
-                {Math.round(h.armyDefAura * 100)}% DÉF • 🗝️ Donjon {h.dungeonPower}
-              </div>
-              <div className="hero-relics">
-                {h.relics.length === 0 ? (
-                  <small className="small-muted">Aucune relique équipée (explorez un Donjon !)</small>
-                ) : (
-                  h.relics.map((r, idx) => (
-                    <span key={`${r.id}_${idx}`} className="relic-chip" title={r.description}>
-                      {r.icon} {r.name}
-                    </span>
-                  ))
-                )}
-              </div>
-              <div className="hero-status-line">
-                {h.status === 'idle' && <span className="ok-text">Disponible à la Capitale</span>}
-                {h.status === 'army' && h.assignedId && (
-                  <span>
-                    🚩 Commande <strong>{state.armies[h.assignedId]?.name}</strong>
-                  </span>
-                )}
-                {h.status === 'dungeon' && h.assignedId && (
-                  <button
-                    type="button"
-                    className="action-btn compact-btn"
-                    onClick={() => {
-                      onSelectZone(h.assignedId!);
-                      onClose();
-                    }}
-                  >
-                    🗝️ En Donjon ({state.zones[h.assignedId]?.name}) — Voir
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <h3 className="section-sub">Aventuriers présents à la Taverne</h3>
-      {state.tavernPool.length === 0 ? (
-        <p className="small-muted">
-          De nouveaux Héros arriveront à la Taverne au prochain Printemps !
-        </p>
-      ) : (
-        <div className="heroes-grid">
-          {state.tavernPool.map((h) => (
-            <div key={h.id} className="hero-card">
-              <img src={h.portrait} alt={h.name} width={76} height={76} className="hero-avatar" />
-              <div className="hero-info">
-                <strong>{h.name}</strong>
-                <span className="small-muted">{h.title}</span>
-                <p className="small-muted">{h.lore}</p>
-                <button
-                  type="button"
-                  className="primary-btn compact-btn"
-                  disabled={state.resources.gold < 65 || state.resources.intendance < 12}
-                  onClick={() => onRecruitHero(h.id)}
-                >
-                  🍺 Recruter (65 🪙 Or • 12 ⚡ Intendance)
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </NativeModal>
   );
 };
@@ -510,7 +811,7 @@ export const DungeonEventModal: React.FC<{
           />
           {hero && (
             <p className="hero-expedition-tag">
-              👑 <strong>{hero.name}</strong> (Niv.{hero.level} • ❤️ {Math.round(hero.hp)}/{hero.maxHp}) — Palier{' '}
+              👑 <strong>{hero.name}</strong> (Niv.{hero.level} • ❤️ {Math.round(hero.hp)}/{hero.maxHp}) — Salle{' '}
               {dng.stage}/{dng.maxStages}
             </p>
           )}
@@ -556,12 +857,12 @@ export const AuthorityCrisisModal: React.FC<{
         <p className="small-muted">
           Vous avez régné jusqu’à l’<strong>An {state.year}</strong> avec{' '}
           <strong>
-            {state.zoneOrder.filter((id) => state.zones[id]?.status === 'claimed').length} provinces
+            {state.zoneOrder.filter((id) => state.zones[id]?.status === 'claimed').length} territoires
           </strong>{' '}
           sous votre bannière.
         </p>
         <button type="button" className="primary-btn full-btn" autoFocus onClick={onRestart}>
-          🔄 Fonder un Nouveau Royaume
+          🔄 Fonder une Nouvelle Cité
         </button>
       </NativeModal>
     );
@@ -581,7 +882,7 @@ export const AuthorityCrisisModal: React.FC<{
         className="card-banner-img"
       />
       <p className="dialog-lead">
-        Privé du soutien d’au moins 2 Ordres sur 3, votre trône vacille ! Les délégations exigent des privilèges irrévocables pour ne pas vous destituer sur-le-champ.
+        Vous n’êtes plus soutenu par au moins 2 Ordres sur 3 ! Pour sauver votre trône, vous pouvez acheter leur loyauté au prix de privilèges permanents.
       </p>
       <div className="build-list">
         <button
@@ -590,9 +891,10 @@ export const AuthorityCrisisModal: React.FC<{
           autoFocus
           onClick={() => onDecision('buy_loyalty')}
         >
-          <strong>📜 Acheter la Loyauté (Concéder la Grande Charte)</strong>
+          <strong>📜 Acheter la Loyauté (+50 Autorité & apaise les 3 Ordres)</strong>
           <small className="btn-sub">
-            Restaure l’Autorité à 48% et apaise les 3 Ordres (+22%), MAIS augmente DÉFINITIVEMENT la consommation de ressources du royaume de +15% (Total : +{(state.concessionsCount + 1) * 15}%).
+            Augmente définitivement la consommation de ressources de vos sujets de +12 % (total : +
+            {(state.concessionsCount + 1) * 12} %).
           </small>
         </button>
         <button
@@ -600,8 +902,8 @@ export const AuthorityCrisisModal: React.FC<{
           className="action-btn full-btn"
           onClick={() => onDecision('abdicate')}
         >
-          <strong>🏳️ Abdiquer et clore cette chronique</strong>
-          <small className="btn-sub">Accepter la fin de votre règne et recommencer une partie.</small>
+          <strong>🏳️ Abdiquer et recommencer une partie</strong>
+          <small className="btn-sub">Accepter la fin de votre règne.</small>
         </button>
       </div>
     </NativeModal>
@@ -619,39 +921,42 @@ export const HowToPlayModal: React.FC<{
       open={open}
       onClose={onClose}
       closedBy="any"
-      title="📖 Guide Express du Régent — Comment jouer à Mandea"
+      title="📖 Comment jouer à Mandea (en 30 secondes)"
       wide
     >
       <div className="guide-grid">
         <div className="guide-card">
           <img src="/assets/sprites/farm.png" alt="Ferme" className="guide-sprite" />
-          <h3>1. Annexer & Bâtir</h3>
+          <h3>1. 4 Ressources très claires</h3>
           <p>
-            Votre <strong>⚡ Intendance</strong> se recharge seule chaque seconde. Cliquez sur une province voisine éclairée pour l’<strong>Annexer</strong>, puis bâtissez <strong>Fermes</strong> (Plaines), <strong>Élevages</strong> (Pâturages), <strong>Camps de bûcherons</strong> (Forêts), <strong>Mines</strong> (Collines) et <strong>Routes</strong> !
+            <strong>⚡ Commandement</strong> remonte tout seul chaque seconde !<br />
+            <strong>🌾 Vivres</strong> = Fermes (Plaines) & Élevages (Pâturages).<br />
+            <strong>🪵 Bois</strong> = Camp de bûcherons (Forêts).<br />
+            <strong>💰 Or</strong> = Impôts de la Cité & Mines d’Or (Collines).
           </p>
         </div>
 
         <div className="guide-card">
-          <img src="/assets/sprites/lumber.png" alt="Scierie" className="guide-sprite" />
-          <h3>2. Survivre aux 4 Saisons</h3>
+          <img src="/assets/sprites/lumber.png" alt="Camp de bûcherons" className="guide-sprite" />
+          <h3>2. Explorer, Bâtir & Réparer (🔨)</h3>
           <p>
-            L’Été et l’Automne offrent de riches moissons. En <strong>❄️ Hiver</strong>, les fermes gèlent (-80%) et vos habitants brûlent du <strong>🪵 Bois</strong> pour se chauffer : stockez toujours Vivres et Bois avant le gel (les Élevages produisent même l’hiver !).
-          </p>
-        </div>
-
-        <div className="guide-card">
-          <img src="/assets/sprites/chapel.png" alt="Chapelle" className="guide-sprite" />
-          <h3>3. Les 3 Ordres & l’Autorité</h3>
-          <p>
-            Gardez le soutien d’au moins <strong>2 Ordres sur 3</strong> (Peuple, Noblesse, Clergé au-dessus de 20%). Bâtissez Puits, Chapelles et Manoirs, ajustez les impôts ou lancez des <strong>🎉 Festivités</strong> pour regagner de l’Autorité !
+            Cliquez sur <strong>🔍 Explorer</strong> dans la brume, puis prenez les zones voisines avec votre ⚡. Si un raid pille une terre, cliquez simplement sur le bouton orange <strong>🔨 Réparer (⚡6)</strong> directement sur la carte !
           </p>
         </div>
 
         <div className="guide-card">
           <img src="/assets/sprites/army_player.png" alt="Armée" className="guide-sprite" />
-          <h3>4. Armées, Héros & Donjons</h3>
+          <h3>3. Recruter & Déplacer l’Armée</h3>
           <p>
-            Recrutez vos troupes à la <strong>Capitale</strong>. Pour déplacer votre Armée : <strong>cliquez sur votre Chevalier</strong> sur la carte puis cliquez sur la province cible (ou clic droit). Envoyez vos <strong>Héros</strong> explorer les <strong>🗝️ Donjons</strong> !
+            Cliquez sur le gros bouton <strong>⚔️ Armée & Héros</strong> en bas de l’écran pour recruter Milice, Archers, Chevaliers et Héros avec votre <strong>💰 Or</strong>. Pour bouger : cliquez sur votre Chevalier sur la carte puis sur la zone cible !
+          </p>
+        </div>
+
+        <div className="guide-card">
+          <img src="/assets/sprites/chapel.png" alt="Chapelle" className="guide-sprite" />
+          <h3>4. Saisons & Les 3 Ordres</h3>
+          <p>
+            En <strong>❄️ Hiver</strong>, les fermes gèlent et la Cité brûle du <strong>🪵 Bois</strong> (les Élevages produisent toujours !). Gardez au moins <strong>2 Ordres sur 3</strong> au-dessus de 20 % via <strong>👑 Les 3 Ordres</strong> en bas.
           </p>
         </div>
       </div>

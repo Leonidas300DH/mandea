@@ -734,10 +734,21 @@ export function renderPixelTerrainToImageData(
             r = 74;
             g = 222;
             b = 128;
-          } else if ((px + py) % 4 === 0 && (st !== 0 || otherSt !== 0)) {
-            r = Math.round(r * 0.76);
-            g = Math.round(g * 0.78);
-            b = Math.round(b * 0.76);
+          } else if (st === 2 && otherSt === 2 && (px + py) % 3 === 0) {
+            // Subtle internal border between your own provinces
+            r = Math.round(r * 0.72);
+            g = Math.round(g * 0.75);
+            b = Math.round(b * 0.72);
+          } else if (st !== 0 || otherSt !== 0) {
+            // Clear After Inc-style organic zone boundary so every territory is distinct!
+            r = Math.round(r * 0.58);
+            g = Math.round(g * 0.62);
+            b = Math.round(b * 0.58);
+          } else if ((px + py) % 3 === 0) {
+            // Soft frontier outline in the mist
+            r = Math.round(r * 0.84);
+            g = Math.round(g * 0.86);
+            b = Math.round(b * 0.88);
           }
         }
 

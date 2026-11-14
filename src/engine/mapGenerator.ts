@@ -411,9 +411,8 @@ export function generateOrganicWorld(seed: number): {
     grand_market: 0,
     cathedral: 0,
     noble_court: 0,
-    barracks: 1,
+    barracks: 0,
     menagerie: 0,
-    tavern: 1,
     walls: 1,
   };
 
@@ -424,7 +423,6 @@ export function generateOrganicWorld(seed: number): {
     noble_court: 0,
     barracks: 0,
     menagerie: 0,
-    tavern: 0,
     walls: 0,
   };
 
@@ -507,28 +505,28 @@ export function generateOrganicWorld(seed: number): {
             pendingEvent: null,
           };
           dungeonCount++;
-        } else if (dist > 205 && rng() < 0.42) {
-          // Place Static Territorial Monster guarding rich outer lands!
+        } else if (dist > 235 && rng() < 0.3) {
+          // Place Static Territorial Monster guarding rich outer lands (never moves on its own!)
           const rollM = rng();
           if (rollM < 0.34 || biome === 'hills') {
             staticMonster = {
               id: `mon_${idx}`,
-              name: 'Troll Cuirassé des Crêtes',
+              name: 'Troll des Crêtes',
               kind: 'troll',
-              units: { monster_troll: dist > 380 ? 2 : 1, raider_goblin: 3 },
-              rewardGold: 55,
-              rewardIron: 28,
-              description: 'Un colosse territorial qui interdit toute construction tant qu’il vit.',
+              units: { monster_troll: 1, raider_goblin: 2 },
+              rewardGold: 65,
+              rewardWood: 25,
+              description: 'Monstre immobile gardant la région. Envoyez votre Armée pour libérer le territoire.',
             };
           } else if (rollM < 0.68 || biome === 'forest' || biome === 'marsh') {
             staticMonster = {
               id: `mon_${idx}`,
-              name: 'Reine Arachnide Sylvestre',
+              name: 'Reine Arachnide',
               kind: 'spider_queen',
-              units: { monster_spider: dist > 380 ? 2 : 1 },
-              rewardGold: 50,
-              rewardIron: 16,
-              description: 'Ses toiles géantes étouffent la forêt. Des tireurs perce-armure seront précieux.',
+              units: { monster_spider: 1 },
+              rewardGold: 55,
+              rewardWood: 35,
+              description: 'Monstre immobile tapi dans les bois. Ses toiles bloquent la construction tant qu’elle vit.',
             };
           } else {
             staticMonster = {
@@ -536,9 +534,9 @@ export function generateOrganicWorld(seed: number): {
               name: 'Wyverne Émeraude',
               kind: 'wyvern',
               units: { monster_wyvern: 1 },
-              rewardGold: 80,
-              rewardIron: 24,
-              description: 'Redoutable drake perché sur un trésor d’or ancien.',
+              rewardGold: 95,
+              rewardWood: 20,
+              description: 'Grand monstre immobile perché sur un trésor d’Or ancien.',
             };
           }
           monsterCount++;

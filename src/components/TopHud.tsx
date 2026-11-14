@@ -1,13 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { SEASONS } from '../data/buildings';
 import { RACES } from '../data/races';
-import { EstateId, GameSpeed, GameState } from '../types/game';
+import { GameSpeed, GameState } from '../types/game';
 
 interface TopHudProps {
   state: GameState;
   onSetSpeed: (s: GameSpeed) => void;
-  onOpenEstates: () => void;
-  onOpenTavern: () => void;
+  onFocusResourceHint: (kind: 'intendance' | 'food' | 'wood' | 'gold' | 'city') => void;
   onOpenHelp: () => void;
   onOpenNewGame: () => void;
 }
@@ -21,23 +20,23 @@ const SPEEDS: { value: GameSpeed; label: string; title: string }[] = [
 ];
 
 const SEASON_SHORT_RULE: Record<GameState['season'], string> = {
-  spring: 'Fermes +15% • Explo -15%',
-  summer: 'Fermes +35% • Armées +18%',
-  autumn: 'Moissons +65% • Commerce +15%',
-  winter: 'Gel (-80% Fermes) • Brûle du Bois',
+  spring: 'Fermes +15% • Explo moins chère',
+  summer: 'Fermes +35% • Armées rapides',
+  autumn: 'Grandes Moissons (+65%)',
+  winter: 'Gel Fermes • Chauffage au Bois',
 };
 
 export const TopHud: React.FC<TopHudProps> = ({
   state,
   onSetSpeed,
-  onOpenEstates,
-  onOpenTavern,
+  onFocusResourceHint,
   onOpenHelp,
   onOpenNewGame,
 }) => {
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const seasonCfg = SEASONS[state.season];
   const raceDef = RACES[state.race];
+  const cityLvl = state.zones[state.capitalZoneId]?.capitalBuildings.palace ?? 1;
 
   // Roving tabindex fallback when native focusgroup is unsupported (per modern-web-guidance `toolbar`)
   useEffect(() => {
@@ -98,21 +97,16 @@ export const TopHud: React.FC<TopHudProps> = ({
 
   const formatRate = (r: number) => (r >= 0 ? `+${r.toFixed(1)}` : r.toFixed(1));
 
-  const supportedCount = (['peuple', 'noblesse', 'clerge'] as EstateId[]).filter(
-    (id) => !state.estates[id].inDisgrace
-  ).length;
-
-  const pendingDungeonCount = state.zoneOrder.filter(
-    (id) => Boolean(state.zones[id]?.dungeon?.pendingEvent)
-  ).length;
-
   return (
     <header className="top-hud">
-      {/* 1. Season & Year with plain-French active rule */}
+      {/* 1. Season & Year */}
       <div className="hud-section hud-kingdom" title={seasonCfg.summaryEffects.join(' • ')}>
         <span
           className="race-dot"
-          style={{ backgroundColor: raceDef.primaryColor, borderColor: raceDef.secondaryColor }}
+          style={{
+            backgroundColor: raceDef.primaryColor,
+            borderColor: raceDef.secondaryColor,
+          }}
           title={raceDef.name}
         />
         <div className="season-block">
@@ -131,12 +125,17 @@ export const TopHud: React.FC<TopHudProps> = ({
         </div>
       </div>
 
-      {/* 2. Named, Self-Explanatory Resources */}
+      {/* 2. Streamlined 4 Resources (Clickable to locate/explain how to get each!) */}
       <div className="hud-section hud-resources">
-        <div className="res-chip" title="Intendance : se recharge automatiquement, sert à explorer, annexer et bâtir">
+        <button
+          type="button"
+          className="res-chip res-chip-btn stamina-chip"
+          onClick={() => onFocusResourceHint('intendance')}
+          title="⚡ Commandement (comme l’Endurance d’After Inc) : remonte tout seul chaque seconde ! Sert à Explorer, Prendre une zone, Bâtir et Réparer. Cliquez pour agrandir la Cité."
+        >
           <span className="res-icon">⚡</span>
           <div className="res-data">
-            <span className="res-label">Intendance</span>
+            <span className="res-label">Commandement · Auto</span>
             <div className="res-row">
               <strong className="res-val">
                 {Math.floor(state.resources.intendance)}
@@ -145,12 +144,17 @@ export const TopHud: React.FC<TopHudProps> = ({
               <span className="res-rate pos">+{state.rates.intendance}/s</span>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div className="res-chip" title="Vivres : produits par Fermes & Élevages, nourrissent habitants et armées">
+        <button
+          type="button"
+          className="res-chip res-chip-btn"
+          onClick={() => onFocusResourceHint('food')}
+          title="🌾 Vivres : cliquez pour trouver une Plaine (Ferme) ou un Pâturage (Élevage) sur la carte !"
+        >
           <span className="res-icon">🌾</span>
           <div className="res-data">
-            <span className="res-label">Vivres</span>
+            <span className="res-label">Vivres · Plaines</span>
             <div className="res-row">
               <strong className="res-val">{Math.floor(state.resources.food)}</strong>
               <span className={`res-rate ${state.rates.food < 0 ? 'neg' : 'pos'}`}>
@@ -158,15 +162,17 @@ export const TopHud: React.FC<TopHudProps> = ({
               </span>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div
-          className={`res-chip ${state.season === 'winter' ? 'winter-alert' : ''}`}
-          title="Bois : produit en Forêt, sert aux constructions et au chauffage en Hiver"
+        <button
+          type="button"
+          className={`res-chip res-chip-btn ${state.season === 'winter' ? 'winter-alert' : ''}`}
+          onClick={() => onFocusResourceHint('wood')}
+          title="🪵 Bois : cliquez pour localiser une Forêt (Camp de Bûcherons) sur la carte !"
         >
           <span className="res-icon">🪵</span>
           <div className="res-data">
-            <span className="res-label">Bois</span>
+            <span className="res-label">Bois · Forêts</span>
             <div className="res-row">
               <strong className="res-val">{Math.floor(state.resources.wood)}</strong>
               <span className={`res-rate ${state.rates.wood < 0 ? 'neg' : 'pos'}`}>
@@ -174,23 +180,17 @@ export const TopHud: React.FC<TopHudProps> = ({
               </span>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div className="res-chip" title="Fer & Pierre : extraits dans les Collines, servent aux armes et remparts">
-          <span className="res-icon">⛏️</span>
-          <div className="res-data">
-            <span className="res-label">Fer</span>
-            <div className="res-row">
-              <strong className="res-val">{Math.floor(state.resources.iron)}</strong>
-              <span className="res-rate pos">+{state.rates.iron.toFixed(1)}/s</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="res-chip" title="Or : impôts, marchés, recrutement militaire et Héros">
+        <button
+          type="button"
+          className="res-chip res-chip-btn"
+          onClick={() => onFocusResourceHint('gold')}
+          title="💰 Or : sert à recruter vos Soldats & Héros ! Vient des Impôts et des Mines d’Or (Collines). Cliquez pour voir une Colline."
+        >
           <span className="res-icon">💰</span>
           <div className="res-data">
-            <span className="res-label">Or</span>
+            <span className="res-label">Or · Impôts & Mines</span>
             <div className="res-row">
               <strong className="res-val">{Math.floor(state.resources.gold)}</strong>
               <span className={`res-rate ${state.rates.gold < 0 ? 'neg' : 'pos'}`}>
@@ -198,67 +198,33 @@ export const TopHud: React.FC<TopHudProps> = ({
               </span>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div className="res-chip" title="Habitants du Royaume">
-          <span className="res-icon">👥</span>
+        <button
+          type="button"
+          className="res-chip res-chip-btn"
+          onClick={() => onFocusResourceHint('city')}
+          title="Niveau de votre Cité et Population : cliquez pour ouvrir votre Cité et l’agrandir !"
+        >
+          <span className="res-icon">🏰</span>
           <div className="res-data">
-            <span className="res-label">Habitants</span>
+            <span className="res-label">Cité Niv.{cityLvl}</span>
             <div className="res-row">
               <strong className="res-val">
                 {Math.floor(state.resources.population)}
-                <small>/{state.resources.maxPopulation}</small>
+                <small>/{state.resources.maxPopulation} hab.</small>
               </strong>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
-      {/* 3. Three Estates & Royal Authority Button */}
-      <button
-        type="button"
-        className={`hud-estates-btn ${supportedCount < 2 ? 'critical-pulse' : ''}`}
-        onClick={onOpenEstates}
-        title="Ouvrir le Conseil des Trois Ordres (Impôts, Festivités et Loyauté)"
-      >
-        <div className="authority-pill">
-          <span className="auth-label">Autorité</span>
-          <strong>👑 {Math.round(state.authority)}%</strong>
-          {state.festivitiesTimer > 0 && <span className="fest-tag">🎉 Fête</span>}
-        </div>
-        <div className="estates-mini-bars">
-          {(
-            [
-              { id: 'peuple', icon: '🌾', short: 'Peuple' },
-              { id: 'noblesse', icon: '⚜️', short: 'Nobles' },
-              { id: 'clerge', icon: '⛪', short: 'Clergé' },
-            ] as const
-          ).map((item) => {
-            const est = state.estates[item.id];
-            const val = Math.round(est.satisfaction);
-            return (
-              <div
-                key={item.id}
-                className={`estate-mini ${est.inDisgrace ? 'disgrace' : val < 35 ? 'warn' : 'ok'}`}
-              >
-                <span className="est-mini-head">
-                  {item.icon} {item.short} <strong>{val}%</strong>
-                </span>
-                <div className="mini-bar-bg">
-                  <div className="mini-bar-fill" style={{ width: `${val}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </button>
-
-      {/* 4. Accessible Single-Tab-Stop Toolbar */}
+      {/* 3. Accessible Single-Tab-Stop Toolbar */}
       <div
         ref={toolbarRef}
         role="toolbar"
         {...({ focusgroup: 'toolbar wrap' } as Record<string, string>)}
-        aria-label="Contrôles du temps et du royaume"
+        aria-label="Contrôles de vitesse et d’aide"
         className="hud-toolbar"
       >
         <div role="group" aria-label="Vitesse de jeu" className="toolbar-group">
@@ -279,31 +245,21 @@ export const TopHud: React.FC<TopHudProps> = ({
 
         <span role="separator" aria-orientation="vertical" className="tb-sep" />
 
-        <div role="group" aria-label="Menus du Royaume" className="toolbar-group">
-          <button
-            type="button"
-            className="tb-btn tb-hero-btn"
-            aria-label="Héros et Taverne"
-            title="Gérer vos Héros et en recruter à la Taverne"
-            onClick={onOpenTavern}
-          >
-            🗡️ Héros ({Object.keys(state.heroes).length})
-            {pendingDungeonCount > 0 && <span className="badge-dot">{pendingDungeonCount}</span>}
-          </button>
+        <div role="group" aria-label="Aide et partie" className="toolbar-group">
           <button
             type="button"
             className="tb-btn tb-help-btn"
-            aria-label="Guide de jeu"
-            title="Comment jouer (Guide express)"
+            aria-label="Comment jouer"
+            title="Guide express illustré"
             onClick={onOpenHelp}
           >
-            ❓ Aide
+            📖 Comment jouer
           </button>
           <button
             type="button"
             className="tb-btn"
             aria-label="Nouvelle partie"
-            title="Nouvelle partie / Changer de Peuple"
+            title="Nouvelle partie / Changer de Peuple ou de Difficulté"
             onClick={onOpenNewGame}
           >
             🔄

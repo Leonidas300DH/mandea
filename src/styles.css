@@ -715,33 +715,61 @@ summary:focus-visible {
 
 .move-order-banner {
   position: absolute;
-  bottom: 16px;
+  bottom: 84px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
   background: #0f172a;
   color: #fef08a;
   border: 2px solid #4ade80;
-  padding: 0.55rem 1.15rem;
+  padding: 0.5rem 0.95rem;
   border-radius: 99px;
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.48);
-  pointer-events: none;
-  z-index: 20;
+  pointer-events: auto;
+  z-index: 21;
+  white-space: nowrap;
 }
 
-/* ==================== TOP-LEFT ADVISOR CARD (AFTER INC ONBOARDING!) ==================== */
-.advisor-card {
+.move-cancel-btn {
+  background: #dc2626;
+  color: #ffffff;
+  border: 1px solid #fca5a5;
+  border-radius: 99px;
+  padding: 2px 10px;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ==================== TOP-LEFT GOALS CHECKLIST & URGENT ALERTS (AFTER INC!) ==================== */
+.top-left-stack {
   position: absolute;
   top: 12px;
   left: 12px;
-  width: min(335px, calc(100vw - 24px));
-  background: rgba(15, 23, 42, 0.93);
+  width: min(352px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 16;
+  pointer-events: none;
+}
+
+.top-left-stack > * {
+  pointer-events: auto;
+}
+
+.advisor-card {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.94);
   color: #f8fafc;
   border: 2px solid #f59e0b;
   border-radius: 12px;
-  padding: 0.75rem 0.85rem;
+  padding: 0.68rem 0.82rem;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
-  z-index: 16;
   backdrop-filter: blur(6px);
 }
 
@@ -842,23 +870,27 @@ summary:focus-visible {
 .bottom-left-bar {
   position: absolute;
   left: 12px;
-  bottom: 12px;
+  bottom: 14px;
   display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
   z-index: 14;
-  flex-wrap: wrap;
 }
 
 .chronicle-drawer {
-  width: min(295px, calc(100vw - 24px));
+  width: min(236px, calc(100vw - 24px));
   background: rgba(15, 23, 42, 0.9);
   color: #f8fafc;
   border: 1.5px solid rgba(251, 191, 36, 0.6);
   border-radius: 9px;
-  padding: 0.42rem 0.7rem;
-  font-size: 0.78rem;
+  padding: 0.36rem 0.62rem;
+  font-size: 0.76rem;
   backdrop-filter: blur(4px);
+}
+
+.chronicle-drawer[open] {
+  width: min(310px, calc(100vw - 24px));
 }
 
 .camera-pill {
@@ -1925,4 +1957,568 @@ dialog.mandea-dialog[open] {
   50% {
     box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.25);
   }
+}
+
+
+/* ==================== V3 AFTER INC CLARITY & UX OVERHAUL ==================== */
+
+/* Clickable Top HUD Resource Pills */
+.res-chip-btn {
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  padding: 0.24rem 0.5rem;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+.res-chip-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(251, 191, 36, 0.7);
+}
+
+.stamina-chip {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(251, 191, 36, 0.65);
+}
+
+.tb-help-btn {
+  background: #1d4ed8;
+  border-color: #60a5fa;
+  padding: 0.24rem 0.62rem;
+}
+
+/* Floating Resource Explanation Toast */
+.resource-hint-toast {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: min(620px, calc(100vw - 32px));
+  background: #0f172a;
+  color: #fef08a;
+  border: 2px solid #f59e0b;
+  border-radius: 10px;
+  padding: 0.52rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.48);
+  z-index: 24;
+}
+
+.toast-close-btn {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f8fafc;
+  border: none;
+  border-radius: 5px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+/* Urgent Alert Strip & After Inc Goals Checklist */
+.urgent-alert-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.68rem;
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42);
+}
+
+.urgent-alert-pill.alert-repair {
+  background: linear-gradient(180deg, #ea580c 0%, #c2410c 100%);
+  border: 2px solid #fed7aa;
+}
+
+.urgent-alert-pill.alert-danger {
+  background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
+  border: 2px solid #fecaca;
+}
+
+.urgent-alert-pill.alert-epic {
+  background: linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%);
+  border: 2px solid #e9d5ff;
+}
+
+.urgent-alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.urgent-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #fef08a;
+}
+
+.urgent-text {
+  line-height: 1.3;
+}
+
+.urgent-action-btn {
+  background: #fef08a;
+  color: #0f172a;
+  border: 1.5px solid #ffffff;
+  border-radius: 7px;
+  padding: 0.34rem 0.62rem;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.goals-checklist {
+  list-style: none;
+  margin: 0.38rem 0 0.45rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.34rem;
+}
+
+.goal-row {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.3rem 0.42rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  font-size: 0.77rem;
+  line-height: 1.3;
+}
+
+.goal-row.is-done {
+  background: rgba(22, 163, 74, 0.18);
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #bbf7d0;
+}
+
+.goal-check {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.goal-label {
+  flex: 1;
+}
+
+.goal-jump-btn {
+  background: #f59e0b;
+  color: #0f172a;
+  border: 1px solid #fef08a;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.goals-reward-line {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fcd34d;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding-top: 0.35rem;
+}
+
+/* 1-Click Frontier Explore & Pillaged Repair Map Buttons */
+.frontier-explore-btn {
+  pointer-events: auto;
+  flex-direction: row;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: rgba(15, 23, 42, 0.86);
+  border: 2px solid #fbbf24;
+  color: #fef9c3;
+  font-family: var(--font-ui);
+  font-size: 0.73rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.frontier-explore-btn:hover,
+.frontier-explore-btn.expanded {
+  background: #0f172a;
+  border-color: #fde047;
+  transform: translate(-50%, -50%) scale(1.07);
+}
+
+.frontier-explore-btn.wait-stamina {
+  opacity: 0.78;
+  border-color: #94a3b8;
+}
+
+.frontier-cost {
+  color: #fde047;
+  margin-left: 2px;
+}
+
+.pillaged-repair-btn {
+  pointer-events: auto;
+  margin-top: 3px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, #f97316 0%, #dc2626 100%);
+  color: #ffffff;
+  border: 2px solid #fef08a;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.55);
+  white-space: nowrap;
+  z-index: 9;
+  animation: pulseBorder 1.3s infinite;
+}
+
+.damaged-sprite {
+  filter: sepia(0.45) brightness(0.82) drop-shadow(0 5px 8px rgba(185, 28, 28, 0.55));
+}
+
+.biome-whisper-chip {
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fef9c3;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.32);
+}
+
+/* Signature After Inc Bottom-Center Action Dock */
+.after-dock {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.36rem;
+  background: rgba(15, 23, 42, 0.94);
+  border: 2px solid #f59e0b;
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.52);
+  z-index: 19;
+  backdrop-filter: blur(8px);
+  max-width: calc(100vw - 24px);
+}
+
+.dock-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.52rem;
+  padding: 0.44rem 0.85rem;
+  background: #1e293b;
+  color: #f8fafc;
+  border: 1.5px solid #475569;
+  border-radius: 10px;
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dock-btn:hover {
+  background: #334155;
+  border-color: #fbbf24;
+}
+
+.dock-btn.active {
+  background: #3b2f13;
+  border-color: #fde047;
+}
+
+.dock-army-btn {
+  background: linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%);
+  border-color: #93c5fd;
+}
+
+.dock-army-btn:hover {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.dock-danger-pulse {
+  background: rgba(185, 28, 28, 0.55);
+  border-color: #f87171;
+  animation: pulseBorder 1.2s infinite;
+}
+
+.dock-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.dock-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dock-text strong {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.dock-text small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.dock-army-btn .dock-text small {
+  color: #fef08a;
+}
+
+.dock-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 99px;
+  background: #ef4444;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Keep ZonePanel clear of the bottom dock on desktop */
+@media (min-width: 980px) {
+  .zone-panel {
+    bottom: 84px;
+  }
+}
+
+/* ZonePanel Priority Repair & City Tier Cards */
+.repair-priority-card {
+  background: #fff7ed;
+  border: 2px solid #ea580c;
+}
+
+.repair-big-btn {
+  background: linear-gradient(180deg, #fb923c 0%, #ea580c 100%);
+  color: #ffffff;
+  border-color: #9a3412;
+}
+
+.repair-big-btn .cost-chip {
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+}
+
+.city-tier-card {
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+  border: 2px solid #f59e0b;
+}
+
+.yield-highlight {
+  display: inline-block;
+  margin: 2px 0 3px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.benefit-chip {
+  font-style: normal;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 4px;
+}
+
+/* NewGameModal Pace Picker */
+.pace-picker-box {
+  margin-bottom: 0.9rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--panel-card);
+  border: 1.5px solid #d6c7ae;
+  border-radius: 10px;
+}
+
+.pace-picker-title {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin-bottom: 0.45rem;
+  color: #0f172a;
+}
+
+.pace-btns-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.55rem;
+}
+
+.pace-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+.pace-btn strong {
+  font-size: 0.84rem;
+  color: #0f172a;
+}
+
+.pace-btn small {
+  font-size: 0.74rem;
+  color: #475569;
+  line-height: 1.3;
+}
+
+.pace-btn.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px #fbbf24;
+}
+
+/* Army & Heroes Unified Recruitment Modal */
+.army-modal-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.68rem 0.85rem;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  border: 2px solid #f59e0b;
+  border-radius: 10px;
+  margin-bottom: 0.85rem;
+}
+
+.gold-highlight-pill {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+}
+
+.gold-highlight-pill strong {
+  font-size: 1.08rem;
+  color: #fde047;
+}
+
+.gold-highlight-pill small {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.army-target-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.army-target-picker select {
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  border: 1.5px solid #fbbf24;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.recruit-units-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(265px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.unit-recruit-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.68rem;
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+}
+
+.unit-recruit-card.locked {
+  background: #f8fafc;
+  border-style: dashed;
+  opacity: 0.88;
+}
+
+.unit-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.unit-big-emoji {
+  font-size: 1.5rem;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fef3c7;
+  border: 1.5px solid #f59e0b;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.unit-desc-text {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.tavern-offer-card {
+  background: #fffbeb;
+  border-color: #f59e0b;
 }
